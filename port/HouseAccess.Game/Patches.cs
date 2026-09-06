@@ -379,9 +379,11 @@ public static class Patches
 		// to avoid an ArgumentOutOfRangeException from native OnChoose.
 		// But also allow the call when tuples match buttons OR tuples match slots
 		// (a wheel can have empty slots with buttons+labels, or vice versa).
+		// The tuples list and the native button/slot arrays can briefly disagree
+		// during a wheel rebuild. Require tupleCount to match at least one of
+		// buttonCount or slotCount, otherwise the native OnChoose could throw.
 		bool safe = bound > 0 && __0 < bound
-			&& (tupleCount == buttonCount || tupleCount == slotCount
-				|| buttonCount == slotCount);
+			&& (tupleCount == buttonCount || tupleCount == slotCount);
 		if (__0 >= 0 && safe)
 		{
 			if (sig != _lastWheelGuardSig && unscaledTime - _lastWheelGuardPass > 2f)
