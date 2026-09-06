@@ -7,7 +7,9 @@ House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
 
-## 1.1.5 — conversation replies read out
+## 1.1.5 — talking, walking and the audio beacon
+
+### Conversation replies read out
 
 Talking to someone left the reply list unspoken: the mod waited twenty
 seconds before reading your options — a leftover from a build where it could
@@ -24,6 +26,21 @@ speaker's line you heard silence and the conversation looked dead.
 - Dialogue start, reply collection and dialogue end are logged, and a reply
   batch that never appears is now a warning instead of a hidden debug line, so
   a report like this one can be diagnosed from `BepInEx\LogOutput.log`.
+
+### Auto-walk no longer crashes
+
+Pressing End to walk to a target threw a `NullReferenceException` inside the
+warp step whenever the walk state had been disturbed (right after a cutscene,
+for example), killing the walk and filling the log with errors. The whole
+warp step is now guarded and falls back to frame movement instead, and the
+log shows a one-line warning rather than a stack trace.
+
+### The audio beacon works again
+
+The Ctrl+B beacon was completely silent: its tones were built by casting a
+managed `float[]` to an interop array, which throws `InvalidCastException` on
+this runtime. The tones are now built as a real interop array, so the beacon
+pings and arrival chime sound again.
 
 ## 1.1.4 — builds anywhere
 

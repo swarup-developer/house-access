@@ -119,7 +119,15 @@ public static class Beacon
 			array[i] = Mathf.Sin((float)Math.PI * 2f * frequency * num2) * amplitude * num4 * num5;
 		}
 		AudioClip val = AudioClip.Create(name, num, 1, 44100, false);
-		val.SetData((Il2CppStructArray<float>)(object)array, 0);
+		// A managed float[] is not an Il2CppStructArray<float>; casting it throws
+		// InvalidCastException and the beacon never makes a sound. Build the interop
+		// array explicitly instead.
+		Il2CppStructArray<float> data = new Il2CppStructArray<float>(num);
+		for (int j = 0; j < num; j++)
+		{
+			data[j] = array[j];
+		}
+		val.SetData(data, 0);
 		return val;
 	}
 

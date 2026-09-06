@@ -885,6 +885,8 @@ public static class Navigator
 
 	private static void StepWarp(PlayerCharacter p, Vector3 pos)
 	{
+		try
+		{
 		//IL_0057: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0058: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0101: Unknown result type (might be due to invalid IL or missing references)
@@ -940,10 +942,20 @@ public static class Navigator
 			((Character)p).WarpOverTime(val, num3);
 			_legDeadline = Time.unscaledTime + num3 + 1.5f;
 		}
-		catch (Exception ex)
+			catch (Exception ex)
+			{
+				Log.Warn("WarpOverTime failed, falling back to frame movement: " + ex.Message);
+				_moverForThisWalk = "frame";
+			}
+		}
+		catch (Exception ex2)
 		{
-			Log.Warn("WarpOverTime failed, falling back to frame movement: " + ex.Message);
+			// The warp bookkeeping (path, corners, walk target) can throw when the
+			// walk state was disturbed, e.g. right after a cutscene; never let that
+			// kill the walk or spam the log with a raw NullReferenceException.
+			Log.Warn("Warp step failed, falling back to frame movement: " + ex2.Message);
 			_moverForThisWalk = "frame";
+			CancelWarps();
 		}
 	}
 
