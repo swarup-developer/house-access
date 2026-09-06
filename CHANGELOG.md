@@ -1,11 +1,36 @@
 # House Access — changelog
 
-Newest first. Version 1.1.10 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.11 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.11 — the wheel guard now checks everything the game indexes
+
+The wheel freeze fix in 1.1.9 was incomplete. It checked an incoming wheel
+choice against the sorted option list the mod announces, but the crash kept
+happening - the log showed the guard letting an index through that was still
+out of range of what the game actually indexes. A wheel being closed or
+rebuilt does not clear its collections at the same instant: the sorted option
+list can survive while the per-slot buttons and per-slot objects are already
+gone, and the game's `OnChoose` throws on whichever of its collections no
+longer contains the index.
+
+- The guard now checks the index against all three option collections the
+  wheel keeps (sorted options, per-slot buttons, per-slot objects) and only
+  lets a choice through when it is inside the smallest of them, which is the
+  only one an index is guaranteed to be valid against. A wheel with nothing on
+  it has nothing to choose, so those calls are skipped instead of thrown.
+- The mod's own wheel picks use the same three-way check before calling the
+  game, so it can no longer pass a stale index either.
+- If a choice is refused while you are actually on a wheel, the mod says
+  "that option is not available right now" instead of staying silent.
+- Every choice the guard does let through is logged once per change
+  ("Wheel choose passed the guard: 2 of 5 options, 5 buttons, 5 slots"), so if
+  the crash ever reappears the next `BepInEx\LogOutput.log` shows the exact
+  index and collection sizes at the moment it happened.
 
 ## 1.1.10 — quieter logs, and the description file really fills itself in
 

@@ -215,8 +215,11 @@ public static class WheelBridge
 
 	/// <summary>
 	/// True when <paramref name="index" /> names an option the wheel offers right
-	/// now. The check is read-only; if the options cannot be read the call is
-	/// allowed through so a real choice is never blocked by a failed read.
+	/// now. The check mirrors the OnChoose guard: the index must be inside every
+	/// readable option collection (sorted tuples, per-slot buttons and per-slot
+	/// objects), because a wheel being closed or rebuilt clears some of them before
+	/// others and the game's OnChoose would throw on the first one it indexes that
+	/// no longer contains the index.
 	/// </summary>
 	private static bool WheelStillOffers(RadialMenu menu, int index)
 	{
@@ -226,12 +229,15 @@ public static class WheelBridge
 			{
 				return false;
 			}
-			Il2CppSystem.Collections.Generic.List<Il2CppSystem.ValueTuple<string, bool>> list = Cpp.Read(() => menu.BHNCIKDJNOO);
-			return index >= 0 && index < Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(list);
+			int tupleCount = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(Cpp.Read(() => menu.BHNCIKDJNOO));
+			int buttonCount = Cpp.CountOf<UnityEngine.UI.Button>(Cpp.Read(() => menu.FAIFDGOFNIA));
+			int slotCount = Cpp.CountOf<GameObject>(Cpp.Read(() => menu.CBHGENOCLOF));
+			int bound = Mathf.Min(tupleCount, Mathf.Min(buttonCount, slotCount));
+			return index >= 0 && bound > 0 && index < bound;
 		}
 		catch
 		{
-			return true;
+			return false;
 		}
 	}
 

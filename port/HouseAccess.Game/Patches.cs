@@ -339,38 +339,56 @@ public static class Patches
 
 	private static float _lastWheelGuardWarn;
 
+	private static float _lastWheelGuardPass;
+
+	private static string _lastWheelGuardSig;
+
 	/// <summary>
 	/// Runs before RadialMenu.OnChoose. The game calls the wheel's OnChoose from
 	/// native code while a wheel is being rebuilt at scene and conversation
-	/// transitions; if the index no longer names an option the game throws
-	/// ArgumentOutOfRangeException from inside native code and the screen freezes
+	/// transitions, and an index that no longer names a current option makes the
+	/// game throw ArgumentOutOfRangeException from inside native code and freeze
 	/// ("[Error :Il2CppInterop] During invoking native->managed trampoline ...
-	/// EekUI.RadialMenu.OnChoose"). The wheel's current options are read the same
-	/// way WheelBridge reads them, and any index that cannot name one is skipped.
-	/// If the options cannot be read the original runs, never a guess.
+	/// EekUI.RadialMenu.OnChoose").
+	///
+	/// The index is checked against every option collection the wheel keeps that is
+	/// readable from here - the sorted option tuples WheelBridge announces, the
+	/// per-slot buttons, and the per-slot objects - and the call is skipped unless
+	/// it is inside the smallest of them. A wheel that is being closed or rebuilt
+	/// can keep one collection (the tuples) while clearing the others, so a bound
+	/// against any single list lets a stale index through; the smallest list is the
+	/// only one an index is guaranteed to be valid against. A wheel with nothing on
+	/// it has nothing to choose, so those calls are skipped too. When the guard
+	/// lets a call through it logs the index and the three counts once per change,
+	/// so if a crash still occurs the next LogOutput.log shows exactly what passed.
 	/// </summary>
 	private static void GuardWheelChoose(RadialMenu __instance, int __0, ref bool __runOriginal)
 	{
-		int count;
-		try
+		int tupleCount = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(Cpp.Read(() => __instance.BHNCIKDJNOO));
+		int buttonCount = Cpp.CountOf<UnityEngine.UI.Button>(Cpp.Read(() => __instance.FAIFDGOFNIA));
+		int slotCount = Cpp.CountOf<GameObject>(Cpp.Read(() => __instance.CBHGENOCLOF));
+		int bound = Mathf.Min(tupleCount, Mathf.Min(buttonCount, slotCount));
+		string sig = __0 + " of " + tupleCount + " options, " + buttonCount + " buttons, " + slotCount + " slots";
+		float unscaledTime = Time.unscaledTime;
+		if (__0 >= 0 && bound > 0 && __0 < bound)
 		{
-			Il2CppSystem.Collections.Generic.List<Il2CppSystem.ValueTuple<string, bool>> list = Cpp.Read(() => __instance.BHNCIKDJNOO);
-			count = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(list);
-		}
-		catch
-		{
-			return;
-		}
-		if (__0 >= 0 && __0 < count)
-		{
+			if (sig != _lastWheelGuardSig && unscaledTime - _lastWheelGuardPass > 2f)
+			{
+				_lastWheelGuardSig = sig;
+				_lastWheelGuardPass = unscaledTime;
+				Log.Info("Wheel choose passed the guard: " + sig + ".");
+			}
 			return;
 		}
 		__runOriginal = false;
-		float unscaledTime = Time.unscaledTime;
 		if (unscaledTime - _lastWheelGuardWarn > 1f)
 		{
 			_lastWheelGuardWarn = unscaledTime;
-			Log.Warn($"Wheel choose of index {__0} ignored: the wheel only offers {count} option(s) right now.");
+			Log.Warn("Wheel choose of index " + __0 + " ignored: the wheel offers " + sig + " right now.");
+			if (WheelBridge.Active)
+			{
+				Speaker.SayNow("That option is not available right now.");
+			}
 		}
 	}
 
