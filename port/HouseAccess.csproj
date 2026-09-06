@@ -2,9 +2,15 @@
 
   <PropertyGroup>
     <!-- Root of the BepInEx install whose core/interop assemblies we compile against.
-         Defaults to the copy stashed in the repo's tmp folder so the project builds
-         out of the box. Override with: dotnet build -p:BepInExRoot=C:\path\to\BepInEx -->
-    <BepInExRoot Condition="'$(BepInExRoot)' == ''">$(MSBuildProjectDirectory)\..\tmp\BepInEx788-aside</BepInExRoot>
+         Auto-detected at build time: a real game install (a folder containing
+         HouseParty.exe with a BepInEx\core + BepInEx\interop next to it) on any
+         fixed drive wins; otherwise the copy stashed in the repo's tmp folder is
+         used so the project still builds out of the box. Force a specific root
+         with: dotnet build -p:BepInExRoot=C:\path\to\BepInEx -->
+    <BepInExRootDefault>$(MSBuildProjectDirectory)\..\tmp\BepInEx788-aside</BepInExRootDefault>
+    <BepInExRootExplicit Condition="'$(BepInExRoot)' != ''">true</BepInExRootExplicit>
+    <BepInExRootExplicit Condition="'$(BepInExRootExplicit)' == ''">false</BepInExRootExplicit>
+    <BepInExRoot Condition="'$(BepInExRoot)' == ''">$(BepInExRootDefault)</BepInExRoot>
     <TargetFramework>net6.0</TargetFramework>
     <LangVersion>10.0</LangVersion>
     <Nullable>disable</Nullable>
@@ -528,5 +534,94 @@
       <Private>false</Private>
     </Reference>
   </ItemGroup>
+
+  <!-- Locate the BepInEx install to compile against and re-point every HintPath
+       at it before assembly references are resolved. Uses an MSBuild inline task
+       so detection runs on any machine with a .NET SDK. -->
+  <UsingTask TaskName="FindBepInExRoot" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <BepInExRoot ParameterType="System.String" Required="true" />
+      <DefaultRoot ParameterType="System.String" Required="true" />
+      <ExplicitRoot ParameterType="System.Boolean" Required="true" />
+      <References ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <FoundRoot ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="System.Collections.Generic" />
+      <Using Namespace="Microsoft.Build.Framework" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+        var final = BepInExRoot;
+        if (!ExplicitRoot)
+        {
+            // Depth-limited walk of each fixed drive. A folder that contains
+            // HouseParty.exe with a BepInEx\core + BepInEx\interop next to it is
+            // the primary candidate; any BepInEx folder with game interop is a
+            // fallback. System and user folders are skipped to keep the walk fast.
+            var primary = new List<string>();
+            var secondary = new List<string>();
+
+            void Walk(string start, int depth)
+            {
+                if (depth > 4) return;
+                List<string> dirs;
+                try { dirs = Directory.EnumerateDirectories(start, "*", SearchOption.TopDirectoryOnly).ToList(); }
+                catch { return; }
+                foreach (var d in dirs)
+                {
+                    var name = Path.GetFileName(d);
+                    if (name.StartsWith("$") || name.StartsWith(".")) continue;
+                    if (depth == 0 && (name == "Windows" || name == "ProgramData" || name == "Users"
+                        || name == "System Volume Information" || name == "Recovery" || name == "PerfLogs")) continue;
+                    try
+                    {
+                        var be = Path.Combine(d, "BepInEx");
+                        if (Directory.Exists(Path.Combine(be, "core")) && Directory.Exists(Path.Combine(be, "interop")))
+                        {
+                            if (File.Exists(Path.Combine(d, "HouseParty.exe"))) primary.Add(be);
+                            else secondary.Add(be);
+                        }
+                    }
+                    catch { }
+                    Walk(d, depth + 1);
+                }
+            }
+
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                if (!drive.IsReady || drive.DriveType != DriveType.Fixed) continue;
+                try { Walk(drive.RootDirectory.FullName, 0); }
+                catch { }
+            }
+
+            if (primary.Count == 0 && secondary.Count == 0) final = DefaultRoot;
+            else if (primary.Count > 0) final = primary[0];
+            else final = secondary[0];
+
+            // Re-point every HintPath from the evaluation-time default root to the
+            // chosen root, keeping the core/ or interop/ sub-path intact.
+            foreach (var item in References)
+            {
+                var hp = item.GetMetadata("HintPath");
+                if (string.IsNullOrEmpty(hp)) continue;
+                item.SetMetadata("HintPath", final + "\\" + hp.Replace(DefaultRoot + "\\", ""));
+            }
+        }
+        FoundRoot = final;
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="ResolveBepInExRoot" BeforeTargets="ResolveAssemblyReferences">
+    <FindBepInExRoot BepInExRoot="$(BepInExRoot)" DefaultRoot="$(BepInExRootDefault)" ExplicitRoot="$(BepInExRootExplicit)" References="@(Reference)">
+      <Output TaskParameter="FoundRoot" PropertyName="BepInExRoot" />
+    </FindBepInExRoot>
+    <Message Importance="high" Text="Compiling against BepInEx at: $(BepInExRoot)" />
+    <Error Condition="!Exists('$(BepInExRoot)\core\BepInEx.Core.dll')" Text="Could not locate a BepInEx install (BepInEx\core\BepInEx.Core.dll not found at $(BepInExRoot)). Install BepInEx next to HouseParty.exe, or pass -p:BepInExRoot=&quot;C:\path\to\BepInEx&quot;." />
+  </Target>
 
 </Project>

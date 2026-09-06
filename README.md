@@ -6,7 +6,7 @@
 ![Game: House Party](https://img.shields.io/badge/Game-House%20Party-blueviolet?style=for-the-badge&logo=unity)
 ![Platform: Windows 64--bit](https://img.shields.io/badge/Platform-Windows%20x64-blue?style=for-the-badge&logo=windows)
 ![Framework: BepInEx 6 IL2CPP](https://img.shields.io/badge/Framework-BepInEx%206%20IL2CPP-orange?style=for-the-badge)
-![Version: 1.1.3](https://img.shields.io/badge/Version-1.1.3-informational?style=for-the-badge)
+![Version: 1.1.4](https://img.shields.io/badge/Version-1.1.4-informational?style=for-the-badge)
 
 ### The Complete Screen Reader Accessibility Mod for *House Party*
 *Spoken menus, dialogues, 3D room radar, spatial audio beacons, and full narrative freedom without sight.*
@@ -203,9 +203,9 @@ Developers wishing to contribute or customize House Access can build the project
    ```shell
    dotnet build port\HouseAccess.csproj -c Release
    ```
-   The project compiles against the BepInEx copy stashed in the repo's `tmp\BepInEx788-aside` folder by default, so it builds out of the box from any location. To compile against a real game install instead, point `BepInExRoot` at its `BepInEx` folder:
+   The project finds the game's BepInEx install automatically: it scans the fixed drives for a folder containing `HouseParty.exe` with `BepInEx\core` and `BepInEx\interop` next to it, and compiles against that. If none is found it falls back to the copy stashed in the repo's `tmp\BepInEx788-aside`, so a plain clone still builds. To force a specific install, point `BepInExRoot` at its `BepInEx` folder:
    ```shell
-   dotnet build port\HouseAccess.csproj -c Release -p:BepInExRoot="D:\game\House Party\BepInEx"
+   dotnet build port\HouseAccess.csproj -c Release -p:BepInExRoot="C:\path\to\BepInEx"
    ```
 3. Copy `port\bin\Release\HouseAccess.dll` to your `<House Party>\BepInEx\plugins\` directory.
 

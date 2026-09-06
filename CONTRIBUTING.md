@@ -65,9 +65,11 @@ nothing here can be built without them.
   assemblies are generated on your machine, from your copy of the game, the first
   time you run it under BepInEx. They are not in this repository and must not be
   added to it.
-- `BepInExRoot` defaults to the copy stashed in the repository's own
-  `tmp\BepInEx788-aside` folder, so the project builds out of the box from any
-  location. To compile against a real game install instead, override it:
+- The project resolves `BepInExRoot` at build time. It scans the fixed drives
+  for a folder containing `HouseParty.exe` with `BepInEx\core` and
+  `BepInEx\interop` next to it and compiles against that; if none is found it
+  falls back to the copy stashed in the repository's own `tmp\BepInEx788-aside`
+  folder. A specific install can still be forced:
   `dotnet build port\HouseAccess.csproj -p:BepInExRoot="<House Party>\BepInEx"`.
 - Set `UnityLogListening = false` under `[Logging]` in
   `BepInEx\config\BepInEx.cfg` before you run the game. This is not a preference.

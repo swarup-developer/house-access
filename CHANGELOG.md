@@ -1,11 +1,31 @@
 # House Access — changelog
 
-Newest first. Version 1.1.3 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.4 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.4 — builds anywhere
+
+A release whose changes are in the build and the installer, not the gameplay
+code: the mod itself is unchanged from 1.1.3.
+
+- `dotnet build port\HouseAccess.csproj` no longer needs the repository to live
+  inside the game folder, and no longer needs a `-p:BepInExRoot` switch on this
+  machine. The project now finds the game's BepInEx install by itself: it scans
+  the fixed drives for a folder containing `HouseParty.exe` with
+  `BepInEx\core` and `BepInEx\interop` next to it and compiles against that.
+- If no game install is found, it falls back to the copy stashed in the
+  repository's `tmp\BepInEx788-aside` folder, so a plain clone still builds.
+- A specific install can still be forced with
+  `dotnet build -p:BepInExRoot="C:\path\to\BepInEx"`.
+- The installer layout is complete again: the game folder ships BepInEx 6 for
+  IL2CPP (build 788) with its `dotnet` runtime folder, the interop assemblies,
+  and `UnityLogListening = false` in `BepInEx.cfg`. Without that setting the
+  game dies with an access violation at engine start-up, before the mod can
+  speak — which is what the silent start-ups on this machine were.
 
 ## 1.1.3 — menus and number keys
 
@@ -117,7 +137,7 @@ builds only. It does not start on current versions of the game.
 ## Upgrading from 1.1.0
 
 This is not a drop-in replacement. 1.1.0 lived in a `Mods` folder under
-MelonLoader; 1.1.3 lives in `BepInEx\plugins`. Follow the install steps in the
+MelonLoader; 1.1.3 and later live in `BepInEx\plugins`. Follow the install steps in the
 README from the beginning, including the `UnityLogListening` setting, and remove
 the old MelonLoader install if you still have one. Your own `labels.txt`,
 `descriptions.txt` and `cutscenes.txt` in `UserData\HouseAccess` carry over
