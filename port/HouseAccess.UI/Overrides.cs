@@ -9,7 +9,7 @@ public static class Overrides
 {
 	private static Dictionary<string, string> _map;
 
-	private static readonly string[][] Defaults = new string[9][]
+	private static readonly string[][] Defaults = new string[23][]
 	{
 		new string[2] { "LanguageButton", "Language" },
 		new string[2] { "GlobeButton", "Language" },
@@ -19,7 +19,21 @@ public static class Overrides
 		new string[2] { "ArrowLeft", "Previous character" },
 		new string[2] { "ArrowRight", "Next character" },
 		new string[2] { "CustomizeButton", "Customize character" },
-		new string[2] { "CustomStoriesButton", "Custom stories" }
+		new string[2] { "CustomStoriesButton", "Custom stories" },
+		new string[2] { "Audio", "Audio settings" },
+		new string[2] { "Graphics", "Graphics settings" },
+		new string[2] { "Gameplay", "Gameplay settings" },
+		new string[2] { "Settings", "Settings" },
+		new string[2] { "SettingsManager", "Settings" },
+		new string[2] { "SaveSettings", "Save settings" },
+		new string[2] { "InitializeSettings", "Settings" },
+		new string[2] { "MainSettings", "Main settings" },
+		new string[2] { "Censorship", "Censorship settings" },
+		new string[2] { "Slider", "Slider" },
+		new string[2] { "Toggle", "Toggle" },
+		new string[2] { "Dropdown", "Dropdown" },
+		new string[2] { "Button", "Button" },
+		new string[2] { "Apply", "Apply" }
 	};
 
 	public static string FilePath => Path.Combine(Diagnostics.Directory, "labels.txt");

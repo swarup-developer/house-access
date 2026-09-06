@@ -465,7 +465,10 @@ public static class MenuReader
 				return true;
 			}
 			string text = ((UnityEngine.Object)val).name ?? string.Empty;
-			return text.IndexOf("debug", StringComparison.OrdinalIgnoreCase) >= 0 || text.IndexOf("console", StringComparison.OrdinalIgnoreCase) >= 0 || text.IndexOf("hud", StringComparison.OrdinalIgnoreCase) >= 0;
+			// Skip debug, console, and HUD canvases, but never skip settings panels.
+			return text.IndexOf("debug", StringComparison.OrdinalIgnoreCase) >= 0
+				|| text.IndexOf("console", StringComparison.OrdinalIgnoreCase) >= 0
+				|| text.IndexOf("hud", StringComparison.OrdinalIgnoreCase) >= 0;
 		}
 		catch
 		{

@@ -19,6 +19,7 @@ namespace HouseAccess;
 public class HouseAccessMod : BasePlugin
 {
 	private Harmony _harmony;
+	private bool _firstScan;
 
 	public override void Load()
 	{
@@ -28,6 +29,7 @@ public class HouseAccessMod : BasePlugin
 		Prefs.Init();
 		Overrides.Load();
 		CutsceneBridge.Load();
+		_firstScan = true;
 		Speaker.Init();
 		global::HouseAccess.Log.Info("Speech backend: " + Speaker.BackendName);
 		try
@@ -160,6 +162,7 @@ internal static class Driver
 				_descriptionAttempts = 1;
 				Log.Guard("Descriptions", LoadDescriptions);
 				Speaker.Say($"House Access ready, using {Speaker.BackendName}. Press {Prefs.KeyHelp.Value} for keys.", Pri.High);
+				SettingsBridge.ScanAndLogSettingsControls();
 			}
 			else if (_greeted && _descriptionAttempts < 5 && !Appearance.HasNames && Time.realtimeSinceStartup > _greetAt + 20f * _descriptionAttempts)
 			{
@@ -191,6 +194,7 @@ internal static class Driver
 			Log.Guard("TextFields", TextFields.Tick);
 			Log.Guard("Menu", MenuReader.Tick);
 			Log.Guard("Loading", LoadingBridge.Tick);
+			Log.Guard("Settings", SettingsBridge.Tick);
 			Log.Guard("Hold", Hold.Tick);
 			Log.Guard("Radar", Radar.Tick);
 			Log.Guard("Rooms", Reporter.Tick);
@@ -270,9 +274,9 @@ internal static class Driver
 		Hands.Reset();
 		OpportunityBridge.Reset();
 		InventoryBridge.Reset();
-		UseWithBridge.Reset();
-		CutsceneBridge.Reset();
-		Thermostats.Reset();
+		UseWithBridge.Reset();			CutsceneBridge.Reset();
+			SettingsBridge.Reset();
+			Thermostats.Reset();
 		Photos.Reset();
 		CombatBridge.Reset();
 		CustomizeBridge.Reset();

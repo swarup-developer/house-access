@@ -112,15 +112,37 @@ public static class Patches
 		Patch(typeof(MiniGameManager), "OnEndGame", "OnGameEnd");
 		if (Prefs.PatchPreferences.Value)
 		{
-			// PreferenceManager.SetInt does not exist in this build (only SetIntPreference
-			// with a translated enum), so value announcements are not patched.
-			Log.Info("Preference value announcements are not supported on this game build.");
+			// SettingsManager is the game's settings/preferences controller.
+			// Patch its initialisation and apply methods so that opening a settings
+			// panel and changing a value is spoken aloud.
+			Patch(typeof(SettingsManager), "InitializeSettings", "OnSettingsInitialized");
+			Patch(typeof(SettingsManager), "InitializeMainSettings", "OnSettingsInitialized");
+			Patch(typeof(SettingsManager), "SetAudioSettings", "OnSettingsInitialized");
+			Patch(typeof(SettingsManager), "ApplyGraphicsSettings", "OnSettingsChanged");
+			Patch(typeof(SettingsManager), "TryApplyCensorshipSettings", "OnSettingsChanged");
+			Patch(typeof(SettingsManager), "InitializeGameplaySettings", "OnSettingsInitialized");
+			Patch(typeof(SettingsManager), "TryApplyLegacyIntimacySettings", "OnSettingsChanged");
+			Patch(typeof(SettingsManager), "TryApplyShowTutorialSettings", "OnSettingsChanged");
 		}
 		else
 		{
 			Log.Info("Preference patches disabled (PatchPreferences = false).");
 		}
 		Log.Info($"Harmony: {Applied} patches applied, {Failed} skipped.");
+	}
+
+	private static void OnSettingsInitialized()
+	{
+		FirstCall("SettingsManager settings panel opened");
+		Guard(delegate
+		{
+			Speaker.Say("Settings opened.", Pri.High);
+		});
+	}
+
+	private static void OnSettingsChanged()
+	{
+		Guard(SettingsBridge.AnnounceCurrentSettings);
 	}
 
 	/// <summary>
