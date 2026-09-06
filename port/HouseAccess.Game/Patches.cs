@@ -464,12 +464,23 @@ public static class Patches
 		});
 	}
 
-	private static void OnDisplayMessage(string __0, bool __2)
+	private static void OnDisplayMessage(string __0, string __1, bool __2)
 	{
 		FirstCall("MessageHandler.OnDisplayMessage");
 		Guard(delegate
 		{
-			SayThought(__0, __2);
+			string text = TextUtil.Clean(__0);
+			string text2 = TextUtil.Clean(__1);
+			string combined;
+			if (!string.IsNullOrWhiteSpace(text) && !string.IsNullOrWhiteSpace(text2))
+			{
+				combined = text + ". " + text2;
+			}
+			else
+			{
+				combined = !string.IsNullOrWhiteSpace(text) ? text : text2;
+			}
+			SayThought(combined, __2);
 		});
 	}
 

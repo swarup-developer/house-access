@@ -6,6 +6,7 @@ using HouseAccess.Speech;
 using HouseAccess.Util;
 using HouseAccess.World;
 using EekCharacterEngine;
+using EekCharacterEngine.Canvas;
 using EekCharacterEngine.Interaction;
 using UnityEngine;
 
@@ -72,8 +73,7 @@ public static class InventoryBridge
 		_nextScan = 0f;
 	}
 
-	// The UI is treated as open while its own GameObject is active (this game build does
-	// not expose an IsShowing flag on the canvas base class).
+	// The inventory canvas UI state: CanvasBase.Canvas GameObject is active while open.
 	private static bool IsOpen()
 	{
 		InventoryUI u = Ui;
@@ -83,6 +83,16 @@ public static class InventoryBridge
 		}
 		try
 		{
+			CanvasBase cb = ((Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase)u).TryCast<CanvasBase>();
+			if (Cpp.Alive((UnityEngine.Object)(object)cb))
+			{
+				GameObject canvas = Cpp.Read(() => cb.Canvas);
+				if (Cpp.Alive((UnityEngine.Object)(object)canvas))
+				{
+					return canvas.activeInHierarchy;
+				}
+				return Cpp.Read(() => cb.KHJBOFBICPF, fallback: false);
+			}
 			return ((Component)u).gameObject.activeInHierarchy;
 		}
 		catch
@@ -114,30 +124,63 @@ public static class InventoryBridge
 
 	private static bool Refresh()
 	{
-		// Read the player's carried items from the inventory component (the UI's own row
-		// list is not readable on this game build). Each InventoryObject names the item
-		// and points back at its InteractiveItem.
+		// First try reading items currently displayed on the InventoryUI canvas slots.
 		List<string> list2 = new List<string>();
 		List<InteractiveItem> list3 = new List<InteractiveItem>();
-		InventoryComp bag = Bag;
-		if (bag != null)
+		InventoryUI ui = Ui;
+		if (Cpp.Alive((UnityEngine.Object)(object)ui))
 		{
-			Il2CppSystem.Collections.Generic.List<InventoryObject> inv = Cpp.Read(() => bag.HHIDMHMDDIG);
-			int n = Cpp.CountOf<InventoryObject>(inv);
-			for (int i = 0; i < n; i++)
+			try
 			{
-				InventoryObject obj = Cpp.AtOf<InventoryObject>(inv, i);
-				if (obj == null)
+				Il2CppSystem.Collections.Generic.List<InventoryUI.LBEMAJLOJKH> display = Cpp.Read(() => ui.EHJCCCEFIHK);
+				int count = Cpp.CountOf<InventoryUI.LBEMAJLOJKH>(display);
+				for (int i = 0; i < count; i++)
 				{
-					continue;
+					InventoryUI.LBEMAJLOJKH slot = Cpp.AtOf<InventoryUI.LBEMAJLOJKH>(display, i);
+					if (slot == null)
+					{
+						continue;
+					}
+					InteractiveItem item = Cpp.Read(() => slot.IDMOLAKGIGK);
+					if (Cpp.Alive((UnityEngine.Object)(object)item))
+					{
+						string name = GameRefs.NameOf(item);
+						if (!string.IsNullOrWhiteSpace(name))
+						{
+							list2.Add(name);
+							list3.Add(item);
+						}
+					}
 				}
-				string text = Cpp.Read(() => obj.Name);
-				if (string.IsNullOrWhiteSpace(text))
+			}
+			catch
+			{
+			}
+		}
+
+		// Fallback to reading player's carried items from the inventory component.
+		if (list2.Count == 0)
+		{
+			InventoryComp bag = Bag;
+			if (bag != null)
+			{
+				Il2CppSystem.Collections.Generic.List<InventoryObject> inv = Cpp.Read(() => bag.HHIDMHMDDIG);
+				int n = Cpp.CountOf<InventoryObject>(inv);
+				for (int i = 0; i < n; i++)
 				{
-					continue;
+					InventoryObject obj = Cpp.AtOf<InventoryObject>(inv, i);
+					if (obj == null)
+					{
+						continue;
+					}
+					string text = Cpp.Read(() => obj.Name);
+					if (string.IsNullOrWhiteSpace(text))
+					{
+						continue;
+					}
+					list2.Add(text);
+					list3.Add(Cpp.Read(() => obj.ScriptReference));
 				}
-				list2.Add(text);
-				list3.Add(Cpp.Read(() => obj.ScriptReference));
 			}
 		}
 		int num5 = list2.Count * 397;
@@ -371,6 +414,11 @@ public static class InventoryBridge
 
 	private static void HandleKeys()
 	{
+		if (Input.GetKeyDown(KeyCode.Escape))
+		{
+			CloseIfOpen();
+			return;
+		}
 		if (Keys.Hit(Prefs.KeyUiNext))
 		{
 			Move(1);

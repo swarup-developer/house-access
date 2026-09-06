@@ -1,11 +1,20 @@
 # House Access — changelog
 
-Newest first. Version 1.1.11 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.12 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.12 — accessible inventory menu, mobile phone, memories, and inspector
+
+Four major accessibility systems are now fully accessible:
+
+- **Inventory Menu is navigable and accessible**: Fixed canvas open/close detection to inspect `CanvasBase.Canvas` rather than the persistently active root GameObject. Carried items are read from on-display slots (`EHJCCCEFIHK`) with fallback to the bag component, announcing names, counts, and positions. Added Escape key handling to cleanly close the inventory.
+- **In-game Mobile Phone is fully usable in hand**: Restored the complete phone interface against modern engine hooks. Holding the phone in hand announces the home screen and app count. Arrow keys navigate the 8 apps (Photos, Messages, Music, Phone, Mail, Facebook, Reddit, Hearthstone) with Return or numeric shortcuts (1-8, Ctrl+1-8) to launch. The Photos app allows stepping forward and backward through pictures with photo names and counts, and digital clock time is read via `ScreenTime()`.
+- **Memories and Opportunities screen restored**: Re-enabled `OpportunityWindowManager` accessibility. The screen supports both Opportunities and Memories lists, with Tab toggling between the two tabs, Up/Down arrow keys stepping through entries, Home repeating current entry, F2 reading all entries, and Escape closing the window.
+- **Inspector screen and inspection messages talk**: Fixed `MessageHandler.OnDisplayMessage` hook which was omitting the message body parameter, restoring spoken output for inspection messages, thought bubbles, and info popups. Enhanced F4 (`AnnounceTargetStatus`) so pressing F4 while an Inspector overlay or detail window is open announces the complete on-screen inspector text.
 
 ## 1.1.11 — the wheel guard now checks everything the game indexes
 

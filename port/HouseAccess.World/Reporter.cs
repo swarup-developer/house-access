@@ -361,8 +361,66 @@ public static class Reporter
 		}
 	}
 
+	private static bool TryAnnounceInspector()
+	{
+		if (OpportunityBridge.Active)
+		{
+			OpportunityBridge.ReadAll();
+			return true;
+		}
+		try
+		{
+			HouseParty.Interface.MessageHandler mh = Cpp.FindOne<HouseParty.Interface.MessageHandler>(activeOnly: true);
+			if (Cpp.Alive((UnityEngine.Object)(object)mh))
+			{
+				GameObject go = Cpp.Read(() => ((Component)mh).gameObject);
+				if (Cpp.Alive((UnityEngine.Object)(object)go) && go.activeInHierarchy)
+				{
+					List<string> parts = new List<string>();
+					foreach (UnityEngine.UI.Text t in go.GetComponentsInChildren<UnityEngine.UI.Text>(false))
+					{
+						if (!Cpp.Alive((UnityEngine.Object)(object)t))
+						{
+							continue;
+						}
+						string s = TextUtil.Clean(Cpp.Read(() => t.text));
+						if (!string.IsNullOrWhiteSpace(s) && !parts.Contains(s))
+						{
+							parts.Add(s);
+						}
+					}
+					foreach (TMPro.TMP_Text t in go.GetComponentsInChildren<TMPro.TMP_Text>(false))
+					{
+						if (!Cpp.Alive((UnityEngine.Object)(object)t))
+						{
+							continue;
+						}
+						string s = TextUtil.Clean(Cpp.Read(() => t.text));
+						if (!string.IsNullOrWhiteSpace(s) && !parts.Contains(s))
+						{
+							parts.Add(s);
+						}
+					}
+					if (parts.Count > 0)
+					{
+						Speaker.Say(TextUtil.Cap(string.Join(". ", parts), 1000), Pri.High);
+						return true;
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
+		return false;
+	}
+
 	public static void AnnounceTargetStatus()
 	{
+		if (TryAnnounceInspector())
+		{
+			return;
+		}
 		Entry entry = Radar.Current;
 		if (entry == null || entry.Kind != EntryKind.Person)
 		{
