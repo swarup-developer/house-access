@@ -1,11 +1,30 @@
 # House Access — changelog
 
-Newest first. Version 1.1.8 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.9 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.9 — the wheel can no longer freeze the game
+
+Starting a new game, or moving between conversations, could make House Party
+"not responding": the game itself calls the interaction wheel's `OnChoose`
+from native code while the wheel is being rebuilt at those transitions, and an
+index that no longer exists makes the game throw
+`ArgumentOutOfRangeException` from inside its own code — the repeated
+`[Error :Il2CppInterop] During invoking native->managed trampoline ...
+EekUI.RadialMenu.OnChoose` block in `BepInEx\LogOutput.log` — and freeze.
+
+- A guard now runs before the wheel's `OnChoose`: the index is checked against
+  the options the wheel currently offers, and a choice that cannot name an
+  option is skipped instead of thrown (one log line per second at most). The
+  game's legitimate choices are untouched — the check is read-only and, if the
+  options cannot be read, the original call always runs.
+- The mod's own wheel choices are double-checked at the moment they are made:
+  if the wheel was repopulated since its options were announced, the mod says
+  "that option is no longer available" instead of passing on a stale index.
 
 ## 1.1.8 — replies follow the game's focus
 

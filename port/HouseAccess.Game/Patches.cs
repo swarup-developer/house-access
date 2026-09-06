@@ -78,6 +78,12 @@ public static class Patches
 		Patch(typeof(UIRadialMenu), "OnChoose", "OnRadialChosen");
 		Patch(typeof(RadialMenu), "SetInteractions", "OnWheelOpened");
 		Patch(typeof(RadialMenu), "OnChoose", "OnWheelChosen");
+		// The game itself calls RadialMenu.OnChoose from native code while a wheel's
+		// options are being rebuilt at scene and conversation transitions, and an
+		// index that no longer exists makes the game throw ArgumentOutOfRangeException
+		// ("During invoking native->managed trampoline") and freeze. Prefix-guard the
+		// index so a choice that cannot name a current option is skipped instead.
+		PatchPrefix(typeof(RadialMenu), "OnChoose", "GuardWheelChoose");
 		Patch(typeof(InventoryUI), "OnItemClick", "OnInventoryClick");
 		if (Prefs.PatchWidgetFocus.Value)
 		{
@@ -244,6 +250,31 @@ public static class Patches
 		}
 	}
 
+	private static bool PatchPrefix(Type target, string methodName, string prefixName)
+	{
+		try
+		{
+			MethodInfo methodInfo = AccessTools.Method(target, methodName, (Type[])null, (Type[])null);
+			if (methodInfo == null)
+			{
+				Failed++;
+				Log.Warn($"Harmony: {target.Name}.{methodName} not found; the wheel index guard is disabled.");
+				return false;
+			}
+			MethodInfo method = typeof(Patches).GetMethod(prefixName, BindingFlags.Static | BindingFlags.NonPublic);
+			_harmony.Patch((MethodBase)methodInfo, new HarmonyMethod(method), (HarmonyMethod)null, (HarmonyMethod)null, (HarmonyMethod)null, (HarmonyMethod)null);
+			Applied++;
+			Log.Debug("Harmony: prefixed " + target.Name + "." + methodName);
+			return true;
+		}
+		catch (Exception ex)
+		{
+			Failed++;
+			Log.Warn($"Harmony: could not prefix {target.Name}.{methodName}: {ex.Message}");
+			return false;
+		}
+	}
+
 	private static void OnDialogueStart(CharacterBase __0)
 	{
 		Guard(delegate
@@ -304,6 +335,43 @@ public static class Patches
 	{
 		FirstCall("RadialMenu.OnChoose");
 		Guard(WheelBridge.NotifyChosen);
+	}
+
+	private static float _lastWheelGuardWarn;
+
+	/// <summary>
+	/// Runs before RadialMenu.OnChoose. The game calls the wheel's OnChoose from
+	/// native code while a wheel is being rebuilt at scene and conversation
+	/// transitions; if the index no longer names an option the game throws
+	/// ArgumentOutOfRangeException from inside native code and the screen freezes
+	/// ("[Error :Il2CppInterop] During invoking native->managed trampoline ...
+	/// EekUI.RadialMenu.OnChoose"). The wheel's current options are read the same
+	/// way WheelBridge reads them, and any index that cannot name one is skipped.
+	/// If the options cannot be read the original runs, never a guess.
+	/// </summary>
+	private static void GuardWheelChoose(RadialMenu __instance, int __0, ref bool __runOriginal)
+	{
+		int count;
+		try
+		{
+			Il2CppSystem.Collections.Generic.List<Il2CppSystem.ValueTuple<string, bool>> list = Cpp.Read(() => __instance.BHNCIKDJNOO);
+			count = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(list);
+		}
+		catch
+		{
+			return;
+		}
+		if (__0 >= 0 && __0 < count)
+		{
+			return;
+		}
+		__runOriginal = false;
+		float unscaledTime = Time.unscaledTime;
+		if (unscaledTime - _lastWheelGuardWarn > 1f)
+		{
+			_lastWheelGuardWarn = unscaledTime;
+			Log.Warn($"Wheel choose of index {__0} ignored: the wheel only offers {count} option(s) right now.");
+		}
 	}
 
 	private static void OnRadialChosen(int __0)

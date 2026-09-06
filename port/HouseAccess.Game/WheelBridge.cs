@@ -193,6 +193,15 @@ public static class WheelBridge
 		Reset();
 		Speaker.SayNow(text + ".");
 		int num = ((i < SourceIndex.Count) ? SourceIndex[i] : i);
+		if (!WheelStillOffers(menu, num))
+		{
+			// The wheel was repopulated since it was announced (the game rebuilds it
+			// at conversation and scene transitions); pass nothing on rather than an
+			// index that would throw inside the game's OnChoose.
+			Log.Warn($"Wheel option '{text}' is gone; index {num} is no longer offered.");
+			Speaker.SayNow("That option is no longer available.");
+			return;
+		}
 		try
 		{
 			menu.OnChoose(num);
@@ -201,6 +210,28 @@ public static class WheelBridge
 		{
 			Log.Warn("Wheel choice failed: " + ex.Message);
 			Speaker.SayNow("That did not work.");
+		}
+	}
+
+	/// <summary>
+	/// True when <paramref name="index" /> names an option the wheel offers right
+	/// now. The check is read-only; if the options cannot be read the call is
+	/// allowed through so a real choice is never blocked by a failed read.
+	/// </summary>
+	private static bool WheelStillOffers(RadialMenu menu, int index)
+	{
+		try
+		{
+			if (!Cpp.Alive((UnityEngine.Object)(object)menu))
+			{
+				return false;
+			}
+			Il2CppSystem.Collections.Generic.List<Il2CppSystem.ValueTuple<string, bool>> list = Cpp.Read(() => menu.BHNCIKDJNOO);
+			return index >= 0 && index < Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(list);
+		}
+		catch
+		{
+			return true;
 		}
 	}
 
