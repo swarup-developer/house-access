@@ -10,6 +10,7 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace HouseAccess.Game;
@@ -38,6 +39,10 @@ public static class DialogueBridge
 
 	private static float _lastActiveAt;
 
+	private static int _lastFocusId;
+
+	private static bool _listAnnounced;
+
 	public static bool Active { get; private set; }
 
 	public static string LastLine { get; private set; }
@@ -58,6 +63,8 @@ public static class DialogueBridge
 		Active = false;
 		_pendingLine = null;
 		_repliesHeld = false;
+		_listAnnounced = false;
+		_lastFocusId = 0;
 		Buttons.Clear();
 		Labels.Clear();
 	}
@@ -68,6 +75,9 @@ public static class DialogueBridge
 		LastSpeaker = speaker;
 		Active = true;
 		_listReady = false;
+		_repliesHeld = false;
+		_listAnnounced = false;
+		_lastFocusId = 0;
 		Buttons.Clear();
 		Labels.Clear();
 		_index = -1;
@@ -160,6 +170,9 @@ public static class DialogueBridge
 	{
 		_listReady = false;
 		_pending = false;
+		_repliesHeld = false;
+		_listAnnounced = false;
+		_lastFocusId = 0;
 		Buttons.Clear();
 		Labels.Clear();
 		_index = -1;
@@ -196,6 +209,7 @@ public static class DialogueBridge
 		}
 		if (_listReady)
 		{
+			SyncGameFocus();
 			HandleKeys();
 		}
 	}
@@ -251,6 +265,10 @@ public static class DialogueBridge
 		_index = 0;
 		_repliesHeld = true;
 		_repliesHeldSince = Time.unscaledTime;
+		_listAnnounced = false;
+		// Point the game's real focus at the first reply, so its own arrow handling
+		// (if any) starts from the same place the mod announces.
+		SelectReply(0);
 		Log.Info("Dialogue: " + Buttons.Count + " repl" + (Buttons.Count == 1 ? "y" : "ies") + " collected.");
 	}
 
@@ -259,10 +277,13 @@ public static class DialogueBridge
 		// The old build waited 20 seconds before reading the replies, which on this
 		// game build (where the voiced line cannot be detected) meant twenty seconds
 		// of silence after the line - indistinguishable from a broken mod. The list
-		// is read after a short pause instead, so the conversation stays navigable.
-		if (_repliesHeld && Time.unscaledTime - _repliesHeldSince > 1.2f)
+		// is read once after a short pause instead. The list stays "held" until a
+		// reply is chosen or the conversation ends, which keeps MenuReader quiet
+		// about the dialogue screen so the game's focus changes and the mod's arrows
+		// cannot announce the same reply twice.
+		if (_repliesHeld && !_listAnnounced && Time.unscaledTime - _repliesHeldSince > 1.2f)
 		{
-			_repliesHeld = false;
+			_listAnnounced = true;
 			Announce();
 		}
 	}
@@ -349,6 +370,7 @@ public static class DialogueBridge
 		if (!pick)
 		{
 			Speaker.SayNow((index < Labels.Count) ? $"{index + 1}. {Labels[index]}" : "reply");
+			SelectReply(index);
 			return;
 		}
 		Choose(index);
@@ -366,7 +388,93 @@ public static class DialogueBridge
 			return;
 		}
 		_index = (_index + dir + Labels.Count) % Labels.Count;
-		Speaker.Say($"{Labels[_index]}, {_index + 1} of {Labels.Count}.", Pri.High);
+		SpeakReply(_index);
+		SelectReply(_index);
+	}
+
+	private static void SpeakReply(int i)
+	{
+		if (i >= 0 && i < Labels.Count)
+		{
+			Speaker.Say($"{Labels[i]}, {i + 1} of {Labels.Count}.", Pri.High);
+		}
+	}
+
+	/// <summary>
+	/// Points the game's own EventSystem selection at the reply, the same call the mod
+	/// uses to move focus in its menus, so the game's highlight (and any arrow handling
+	/// of its own) follows the reply the mod is announcing.
+	/// </summary>
+	private static void SelectReply(int i)
+	{
+		try
+		{
+			if (i < 0 || i >= Buttons.Count)
+			{
+				return;
+			}
+			Button b = Buttons[i];
+			if (Cpp.Alive((UnityEngine.Object)(object)b))
+			{
+				((Selectable)b).Select();
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	/// <summary>
+	/// Follows the game's real focus. If the game selects a reply button on its own
+	/// (its arrow handling, a click, or the mouse), the mod's cursor moves to that
+	/// reply and reads it, so the two can never drift apart. The reverse direction -
+	/// the mod moving the game's focus - happens in <see cref="MoveReply" /> and at
+	/// collection. A game-led move is logged so the two can be told apart.
+	/// </summary>
+	private static void SyncGameFocus()
+	{
+		try
+		{
+			EventSystem es = EventSystem.current;
+			if (!Cpp.Alive((UnityEngine.Object)(object)es))
+			{
+				return;
+			}
+			GameObject go = Cpp.Read(() => es.currentSelectedGameObject);
+			if ((UnityEngine.Object)(object)go == (UnityEngine.Object)null)
+			{
+				return;
+			}
+			int num = go.GetInstanceID();
+			for (int i = 0; i < Buttons.Count; i++)
+			{
+				Button b = Buttons[i];
+				if (!Cpp.Alive((UnityEngine.Object)(object)b))
+				{
+					continue;
+				}
+				GameObject val = Cpp.Read(() => ((Component)b).gameObject);
+				if ((UnityEngine.Object)(object)val == (UnityEngine.Object)null || val.GetInstanceID() != num)
+				{
+					continue;
+				}
+				if (num != _lastFocusId)
+				{
+					_lastFocusId = num;
+					if (i != _index)
+					{
+						_index = i;
+						Log.Info("Dialogue: game focus moved to reply " + (i + 1) + ".");
+						SpeakReply(i);
+					}
+				}
+				return;
+			}
+			_lastFocusId = 0;
+		}
+		catch
+		{
+		}
 	}
 
 	/// <summary>

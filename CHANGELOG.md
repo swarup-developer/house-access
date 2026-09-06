@@ -1,11 +1,29 @@
 # House Access — changelog
 
-Newest first. Version 1.1.7 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.8 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.8 — replies follow the game's focus
+
+Dialogue replies are plain Unity buttons, so the game's own EventSystem
+selection can sit on them. The mod now keeps its reply cursor and the
+game's real focus in step in both directions:
+
+- When the mod moves with the arrows (or a number reads a reply), it also
+  points the game's selection at that reply, so the game's highlight - and
+  any arrow handling of its own - starts from the same reply the mod
+  announced.
+- When the game selects a reply on its own (its arrow handling, a click, or
+  the mouse), the mod follows: the cursor moves there and the reply is read
+  out, and the move is logged as "game focus moved to reply N" so the two
+  directions can be told apart in `BepInEx\LogOutput.log`.
+- The reply list now stays "held" until a reply is chosen or the
+  conversation ends, which keeps the generic menu reader quiet about the
+  dialogue screen and prevents the same reply from being announced twice.
 
 ## 1.1.7 — description template and walk diagnostics
 
