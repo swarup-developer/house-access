@@ -1,11 +1,23 @@
 # House Access — changelog
 
-Newest first. Version 1.1.5 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.6 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.6 — arrow-browse the replies
+
+Dialogue replies can now be walked with the same arrows every other list in
+the mod uses: Down and Up move through the replies one at a time, each read
+as you land on it ("Get out of my house, 2 of 5"), wrapping at the ends, and
+Enter picks the reply you are on. The bindings are the shared KeyUiNext /
+KeyUiPrev / KeyUiActivate keys, so rebinding them in the key editor moves
+the replies too. Numbers and Control+number still work exactly as before.
+
+Previously the reply list was the one list in the mod that ignored the
+arrows its own key documentation promised.
 
 ## 1.1.5 — talking, walking and the audio beacon
 

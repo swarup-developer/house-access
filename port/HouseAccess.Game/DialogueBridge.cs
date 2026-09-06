@@ -324,6 +324,21 @@ public static class DialogueBridge
 			Announce();
 			return;
 		}
+		if (Keys.Hit(Prefs.KeyUiNext))
+		{
+			MoveReply(1);
+			return;
+		}
+		if (Keys.Hit(Prefs.KeyUiPrev))
+		{
+			MoveReply(-1);
+			return;
+		}
+		if (Keys.Hit(Prefs.KeyUiActivate))
+		{
+			Choose(_index);
+			return;
+		}
 		// Numbers go through ListNumbers so replies count the same way as every other
 		// list in the mod: keypad included, 0 for the tenth reply, and a spoken answer
 		// when the number is past the end instead of a silently dropped key.
@@ -336,13 +351,43 @@ public static class DialogueBridge
 			Speaker.SayNow((index < Labels.Count) ? $"{index + 1}. {Labels[index]}" : "reply");
 			return;
 		}
-		Button val = Buttons[index];
+		Choose(index);
+	}
+
+	/// <summary>
+	/// Moves the reply cursor one step (Down = +1, Up = -1), wrapping at the ends, and
+	/// reads the reply now focused: "&lt;reply&gt;, N of M." The same arrows that browse
+	/// every other list in the mod browse the replies too.
+	/// </summary>
+	private static void MoveReply(int dir)
+	{
+		if (Labels.Count == 0)
+		{
+			return;
+		}
+		_index = (_index + dir + Labels.Count) % Labels.Count;
+		Speaker.Say($"{Labels[_index]}, {_index + 1} of {Labels.Count}.", Pri.High);
+	}
+
+	/// <summary>
+	/// Picks the reply at <paramref name="i" />: says it, presses its button and clears
+	/// the list. Shared by Enter (KeyUiActivate) and Control+number so the two paths
+	/// cannot drift apart.
+	/// </summary>
+	private static void Choose(int i)
+	{
+		if (i < 0 || i >= Buttons.Count)
+		{
+			Speaker.SayNow("No replies on screen.");
+			return;
+		}
+		Button val = Buttons[i];
 		if (!Cpp.Alive((UnityEngine.Object)(object)val))
 		{
 			Speaker.SayNow("That reply is no longer there.");
 			return;
 		}
-		Speaker.SayNow((index < Labels.Count) ? Labels[index] : "reply");
+		Speaker.SayNow((i < Labels.Count) ? Labels[i] : "reply");
 		try
 		{
 			((UnityEvent)val.onClick).Invoke();

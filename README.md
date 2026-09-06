@@ -6,7 +6,7 @@
 ![Game: House Party](https://img.shields.io/badge/Game-House%20Party-blueviolet?style=for-the-badge&logo=unity)
 ![Platform: Windows 64--bit](https://img.shields.io/badge/Platform-Windows%20x64-blue?style=for-the-badge&logo=windows)
 ![Framework: BepInEx 6 IL2CPP](https://img.shields.io/badge/Framework-BepInEx%206%20IL2CPP-orange?style=for-the-badge)
-![Version: 1.1.5](https://img.shields.io/badge/Version-1.1.5-informational?style=for-the-badge)
+![Version: 1.1.6](https://img.shields.io/badge/Version-1.1.6-informational?style=for-the-badge)
 
 ### The Complete Screen Reader Accessibility Mod for *House Party*
 *Spoken menus, dialogues, 3D room radar, spatial audio beacons, and full narrative freedom without sight.*
@@ -143,6 +143,7 @@ Every list in House Access (dialogue choices, inventory items, menus, action lis
 - **Keys 1 through 9, and 0**: Reads the item at that position immediately (0 is the 10th item).
 - **Ctrl + Number**: Instantly picks/executes that choice!
 - Pressing a number higher than the list size politely announces the total number of items available.
+- **Up / Down arrows**: Move through the list one item at a time — each is read as you go ("reply, 2 of 5"). **Enter** picks the item you are on. Works in dialogue replies, inventories, wheels, action lists and menus alike.
 
 ### 📷 Camera & Photography
 | Key | Action |
