@@ -216,12 +216,6 @@ public static class DialogueBridge
 
 	private static void TryCollect(DialogueUI ui)
 	{
-		if (_pending && Time.unscaledTime - _pendingSince > 4f)
-		{
-			_pending = false;
-			Log.Warn("Dialogue responses never appeared; giving up on this batch.");
-			return;
-		}
 		if (!Cpp.Alive((UnityEngine.Object)(object)ui))
 		{
 			return;
@@ -232,6 +226,13 @@ public static class DialogueBridge
 		List<Button> list = Cpp.Read(() => Cpp.ToManaged(ui.FAIFDGOFNIA));
 		if (list == null || list.Count == 0)
 		{
+			// No buttons exist at all. Only an empty container after replies were queued
+			// is a lost batch worth warning about.
+			if (_pending && Time.unscaledTime - _pendingSince > 4f)
+			{
+				_pending = false;
+				Log.Warn("Dialogue responses never appeared; giving up on this batch.");
+			}
 			return;
 		}
 		Buttons.Clear();
@@ -258,6 +259,13 @@ public static class DialogueBridge
 		}
 		if (Buttons.Count == 0)
 		{
+			// The reply buttons exist but none are enabled or labelled yet - the game
+			// fills them at the start of an exchange and keeps them disabled while the
+			// voiced line plays. That is waiting, not failure: keep the batch alive.
+			if (_pending)
+			{
+				_pendingSince = Time.unscaledTime;
+			}
 			return;
 		}
 		_pending = false;

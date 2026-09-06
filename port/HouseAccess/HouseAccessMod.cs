@@ -15,7 +15,7 @@ using UnityEngine.SceneManagement;
 
 namespace HouseAccess;
 
-[BepInPlugin("HouseAccess.HouseAccess", "House Access", "1.1.9")]
+[BepInPlugin("HouseAccess.HouseAccess", "House Access", "1.1.10")]
 public class HouseAccessMod : BasePlugin
 {
 	private Harmony _harmony;
@@ -23,7 +23,7 @@ public class HouseAccessMod : BasePlugin
 	public override void Load()
 	{
 		global::HouseAccess.Log.Bind(base.Log);
-		global::HouseAccess.Log.Info("House Access 1.1.9 (BepInEx build) starting. Injection-free driver, menu value tracking, held first focus, label fallbacks, repeat key in menus.");
+		global::HouseAccess.Log.Info("House Access 1.1.10 (BepInEx build) starting. Injection-free driver, menu value tracking, held first focus, label fallbacks, repeat key in menus.");
 		MelonLoader.MelonPreferences.Bind(Config);
 		Prefs.Init();
 		Overrides.Load();
@@ -86,7 +86,7 @@ internal static class Driver
 
 	private static bool _greeted;
 
-	private static bool _descriptionsRetried;
+	private static int _descriptionAttempts;
 
 	private static float _greetAt;
 
@@ -157,15 +157,16 @@ internal static class Driver
 			if (!_greeted && Time.realtimeSinceStartup > _greetAt)
 			{
 				_greeted = true;
+				_descriptionAttempts = 1;
 				Log.Guard("Descriptions", LoadDescriptions);
 				Speaker.Say($"House Access ready, using {Speaker.BackendName}. Press {Prefs.KeyHelp.Value} for keys.", Pri.High);
 			}
-			else if (_greeted && !_descriptionsRetried && Time.realtimeSinceStartup > _greetAt + 20f)
+			else if (_greeted && _descriptionAttempts < 5 && !Appearance.HasNames && Time.realtimeSinceStartup > _greetAt + 20f * _descriptionAttempts)
 			{
 				// The greet-time scan can run before any characters have spawned (intro
-				// cutscene), which leaves the description template without names; try
-				// once more once the party is around.
-				_descriptionsRetried = true;
+				// cutscene), which leaves the description template without names; keep
+				// trying every 20 seconds until the file actually lists the characters.
+				_descriptionAttempts++;
 				Log.Guard("Descriptions", LoadDescriptions);
 			}
 			Log.Guard("Find", Finder.Tick);

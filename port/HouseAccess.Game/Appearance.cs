@@ -24,9 +24,18 @@ public static class Appearance
 
 	public static string FilePath => Path.Combine(Diagnostics.Directory, "descriptions.txt");
 
+	/// <summary>
+	/// True once the description file lists at least one character name (filled in or
+	/// not). The driver keeps reloading until names are present, because the first
+	/// loads can run before any characters have spawned and would otherwise leave the
+	/// file as a bare template the player cannot tell how to fill in.
+	/// </summary>
+	public static bool HasNames { get; private set; }
+
 	public static void Load(IEnumerable<string> knownNames)
 	{
 		_written = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		HasNames = false;
 		try
 		{
 			if (!File.Exists(FilePath))
@@ -47,9 +56,13 @@ public static class Appearance
 				{
 					string text2 = text.Substring(0, num).Trim();
 					string text3 = text.Substring(num + 1).Trim();
-					if (text2.Length != 0 && text3.Length != 0)
+					if (text2.Length != 0)
 					{
-						_written[text2] = text3;
+						HasNames = true;
+						if (text3.Length != 0)
+						{
+							_written[text2] = text3;
+						}
 					}
 				}
 			}
@@ -57,12 +70,35 @@ public static class Appearance
 			{
 				AddMissingNames(knownNames);
 			}
+			if (!HasNames)
+			{
+				HasNames = FileHasAnyName();
+			}
 			Log.Info($"Loaded {_written.Count} character descriptions from {FilePath}");
 		}
 		catch (Exception ex)
 		{
 			Log.Warn("Could not load character descriptions: " + ex.Message);
 		}
+	}
+
+	private static bool FileHasAnyName()
+	{
+		try
+		{
+			foreach (string line in File.ReadAllLines(FilePath))
+			{
+				int num = line.IndexOf('=');
+				if (num > 0 && line.Substring(0, num).Trim().Length != 0)
+				{
+					return true;
+				}
+			}
+		}
+		catch
+		{
+		}
+		return false;
 	}
 
 	private static void AddMissingNames(IEnumerable<string> knownNames)
@@ -135,6 +171,7 @@ public static class Appearance
 				}
 			}
 			File.WriteAllText(FilePath, stringBuilder.ToString());
+			HasNames = FileHasAnyName();
 			Log.Info("Created an empty description file at " + FilePath);
 		}
 		catch (Exception ex)

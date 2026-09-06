@@ -1,11 +1,38 @@
 # House Access — changelog
 
-Newest first. Version 1.1.9 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.10 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.10 — quieter logs, and the description file really fills itself in
+
+Three remaining items from the session logs, none of them crashes but each a
+real gap:
+
+- "Dialogue responses never appeared" was a false alarm. The game fills the
+  reply buttons at the start of each exchange and keeps them disabled while the
+  voiced line plays; the mod treated that as a lost batch after four seconds and
+  warned, then collected the replies normally a moment later - every such
+  warning in the logs is followed by a successful "N replies collected". The
+  batch now stays alive while reply buttons exist but are still disabled, and
+  the warning is kept only for the genuine failure: a reply queue that never
+  creates any buttons at all.
+- Auto-walk retried its two dead movement tiers on every walk. On this game
+  build the warp and frame movement tiers never move the player - only driving
+  the CharacterController directly does - so each walk spent seconds re-proving
+  that and filled the log with fallback warnings. The mod now remembers which
+  tier actually moved the player and starts later walks on it, skipping the
+  dead tiers entirely. If warp works on your build it is remembered and used,
+  and the memory resets per scene.
+- The description template could stay nameless. The two attempts to add
+  character names to `descriptions.txt` ran at greet and 20 seconds later,
+  both before any characters were discoverable, so the file stayed a bare
+  template. The mod now keeps retrying every 20 seconds until the file actually
+  lists the characters (capped at about 80 seconds), so after a fresh launch
+  `UserData\HouseAccess\descriptions.txt` should show who is in the house.
 
 ## 1.1.9 — the wheel can no longer freeze the game
 

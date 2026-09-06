@@ -71,6 +71,12 @@ public static class Navigator
 
 	private static int _warpFailures;
 
+	// Whichever movement tier (warp / frame / direct) last moved the player in this
+	// scene. On some game builds the warp and frame tiers never move the player, and
+	// only driving the CharacterController directly does; remembering the tier that
+	// worked stops every walk from re-proving the two dead tiers first.
+	private static string _lastGoodMover;
+
 	public static bool IsWalking => _walkTarget != null && _walkTarget.Alive;
 
 	public static void Reset()
@@ -80,6 +86,12 @@ public static class Navigator
 		_walkTarget = null;
 		Path.Clear();
 		_corner = 0;
+		_lastGoodMover = null;
+	}
+
+	private static string CurrentMover()
+	{
+		return (_moverForThisWalk ?? _lastGoodMover ?? Prefs.MoveMode?.Value ?? "warp").Trim().ToLowerInvariant();
 	}
 
 	public static void FaceCurrentQuiet()
@@ -719,8 +731,7 @@ public static class Navigator
 		//IL_0050: Unknown result type (might be due to invalid IL or missing references)
 		//IL_005a: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0065: Unknown result type (might be due to invalid IL or missing references)
-		string text = _moverForThisWalk ?? Prefs.MoveMode?.Value ?? "warp";
-		string text2 = text.Trim().ToLowerInvariant();
+		string text2 = CurrentMover();
 		string text3 = text2;
 		if (!(text3 == "frame"))
 		{
@@ -750,6 +761,13 @@ public static class Navigator
 			_watchPos = pos;
 			_watchSince = Time.unscaledTime;
 			_nudges = 0;
+			// Whatever tier actually moved the player is the one worth trying first on
+			// the next walk of this scene.
+			string mover = CurrentMover();
+			if (mover == "warp" || mover == "frame" || mover == "direct")
+			{
+				_lastGoodMover = mover;
+			}
 			return;
 		}
 		if (_watchSince <= 0f)
@@ -760,7 +778,7 @@ public static class Navigator
 		float num = Time.unscaledTime - _watchSince;
 		if (!(num < 1.6f))
 		{
-			string text = (_moverForThisWalk ?? Prefs.MoveMode?.Value ?? "warp").Trim().ToLowerInvariant();
+			string text = CurrentMover();
 			float remain = Vector3.Distance(pos, _fixedGoal);
 			if (text == "warp")
 			{
