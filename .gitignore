@@ -51,16 +51,6 @@ obj/
 # 4. Game-derived and third-party-derived material. Redundant against rule 1 on
 #    purpose: these are the paths that must stay unreachable even if rule 1 is
 #    ever loosened.
-/decompiled/
-/game_dump/
-/src/
-/tmp/
-/tools/
-/all_types.txt
-/imports.txt
-/errs.txt
-/members_*.txt
-UserData/
 BepInEx/
 MelonLoader/
 Mods/
