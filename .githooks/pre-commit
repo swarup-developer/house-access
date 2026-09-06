@@ -1,0 +1,73 @@
+#!/bin/sh
+# House Access pre-commit guard.
+#
+# This repository root sits inside a House Party installation, so the cost of a
+# careless `git add` is not a messy diff, it is publishing game-derived files or
+# another author's decompiled code. .gitignore is the first line of defence and
+# this hook is the last: it inspects what is actually staged and refuses the
+# commit, regardless of what .gitignore says and regardless of any -f used to
+# stage it.
+#
+# Enabled by:  git config core.hooksPath .githooks
+# Verify with: git config --get core.hooksPath   (must print .githooks)
+#
+# Every refusal prints one plain line naming the file and the reason, so it
+# reads cleanly in a screen reader.
+
+fail=0
+refuse() {
+	echo "pre-commit REFUSED: $1" >&2
+	fail=1
+}
+
+files=$(git diff --cached --name-only --diff-filter=ACMR)
+if [ -z "$files" ]; then
+	exit 0
+fi
+
+for f in $files; do
+	case "$f" in
+	decompiled/* | */decompiled/*)
+		refuse "$f is decompiled source and must not be published" ;;
+	game_dump/* | */game_dump/* | *procdump* | */dumps/*)
+		refuse "$f is a dump taken from the game" ;;
+	all_types.txt | imports.txt | errs.txt | members_*.txt)
+		refuse "$f is an extracted listing of game internals" ;;
+	src/* | tmp/* | tools/*)
+		refuse "$f is outside the published project" ;;
+	*.dll | *.pdb | *.exe | *.so | *.dylib | *.lib | *.zip | *.7z | *.rar | *.bin)
+		refuse "$f is a binary; ship it as a release asset, not a commit" ;;
+	bin/* | obj/* | */bin/* | */obj/*)
+		refuse "$f is build output" ;;
+	*.log | *.cfg | UserData/* | BepInEx/* | MelonLoader/* | Mods/*)
+		refuse "$f is a local log, config or install folder" ;;
+	esac
+done
+
+# Source files here top out around 60 KB. Anything far larger is a dump, an
+# asset or a mistake.
+for f in $files; do
+	size=$(git cat-file -s ":$f" 2>/dev/null) || continue
+	if [ "$size" -gt 262144 ]; then
+		refuse "$f is $size bytes, which is too large for source in this project"
+	fi
+done
+
+# Credential shapes, and personal paths that would leak a Windows user name.
+# This hook is excluded from the scan of staged content, because it has to be
+# able to name the patterns it searches for without matching itself.
+staged=$(git diff --cached -U0 -- . ':(exclude).githooks/*')
+if printf '%s' "$staged" | grep -qE '(ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'; then
+	refuse "the staged diff contains something shaped like a credential"
+fi
+if printf '%s' "$staged" | grep -qiE '[A-Za-z]:\\\\Users\\\\'; then
+	refuse "the staged diff contains a C:\\Users\\ path, which leaks a user name"
+fi
+
+if [ "$fail" -ne 0 ]; then
+	echo "pre-commit: nothing was committed." >&2
+	echo "pre-commit: see CONTRIBUTING.md, section 'What must never be committed'." >&2
+	exit 1
+fi
+
+exit 0

@@ -1,0 +1,15 @@
+# Normalise line endings in the repository so a Windows checkout and a Linux
+# clone produce the same blobs, and diffs stay readable.
+* text=auto
+
+*.cs   text diff=csharp
+*.csproj text
+*.md   text
+*.ps1  text
+*.sh   text eol=lf
+
+# Anything that slips past .gitignore is at least not diffed as text.
+*.dll binary
+*.pdb binary
+*.exe binary
+*.zip binary

@@ -1,0 +1,76 @@
+# House Access — deny by default.
+#
+# This repository root sits inside a House Party installation. A mistake here
+# does not merely add clutter, it publishes game files, another author's
+# decompiled code, or a compiled binary. So nothing is tracked unless it is
+# named below, and new entries are added one deliberate line at a time.
+#
+# Never use `git add -f` in this repository. If a file needs to ship, admit it
+# here where the decision is visible in the history.
+
+# 1. Ignore every top-level entry, then re-admit only what we publish.
+/*
+
+!/.gitignore
+!/.gitattributes
+!/.githooks/
+!/README.md
+!/CHANGELOG.md
+!/CONTRIBUTING.md
+!/CRASH-FIX-GUIDE.md
+!/docs/
+!/port/
+!/release/
+
+# Explicitly ignore NOTICE.md
+/NOTICE.md
+
+# 2. Build output, wherever it appears, including inside an admitted folder.
+bin/
+obj/
+*.cache
+*.Up2Date
+*.AssemblyInfo.cs
+*.GeneratedMSBuildEditorConfig.editorconfig
+
+# 3. Binaries. The mod's own DLL is a release download, never a commit.
+*.dll
+*.pdb
+*.exe
+*.so
+*.dylib
+*.lib
+*.zip
+*.7z
+*.rar
+*.bin
+*.db
+*.log
+
+# 4. Game-derived and third-party-derived material. Redundant against rule 1 on
+#    purpose: these are the paths that must stay unreachable even if rule 1 is
+#    ever loosened.
+/decompiled/
+/game_dump/
+/src/
+/tmp/
+/tools/
+/all_types.txt
+/imports.txt
+/errs.txt
+/members_*.txt
+UserData/
+BepInEx/
+MelonLoader/
+Mods/
+
+# 5. Local editor and OS noise.
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+*~
+Thumbs.db
+desktop.ini
