@@ -11,7 +11,7 @@
 ### The Complete Screen Reader Accessibility Mod for *House Party*
 *Spoken menus, dialogues, 3D room radar, spatial audio beacons, and full narrative freedom without sight.*
 
-[Game on GOG](https://www.gog.com/en/game/house_party) • [Download BepInEx 6](https://builds.bepinex.dev/projects/bepinex_be) • [Installation Guide](#-getting-started--installation) • [Controls & Keybinds](#-controls--how-to-play)
+[Game on GOG](https://www.gog.com/en/game/house_party) • [Download BepInEx 6](https://builds.bepinex.dev/projects/bepinex_be) • [Changelog](CHANGELOG.md) • [Installation Guide](#-getting-started--installation) • [Controls & Keybinds](#-controls--how-to-play)
 
 ---
 
@@ -63,7 +63,7 @@ Installing mods into modern IL2CPP Unity games can feel daunting. We've simplifi
 > To make fixing this effortless, we've provided a simple 1-click helper script:
 
 * **Option A (One-Click Automated Fix - Recommended):**  
-  Grab **[`fix-bepinex-config.bat`](release/fix-bepinex-config.bat)** from the `release/` directory, copy it next to `HouseParty.exe`, and run it. It will automatically set `UnityLogListening = false` in your config!
+  Grab **[`fix-bepinex-config.bat`](fix-bepinex-config.bat)** (also included in our [GitHub Releases](https://github.com/swarup-developer/house-access/releases)), copy it next to `HouseParty.exe`, and run it. It will automatically set `UnityLogListening = false` in your config!
 * **Option B (Manual Edit):**  
   Open `BepInEx\config\BepInEx.cfg` in Notepad, locate the `[Logging]` section, and set:
   ```ini

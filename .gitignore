@@ -20,10 +20,11 @@
 !/CRASH-FIX-GUIDE.md
 !/docs/
 !/port/
-!/release/
+!/fix-bepinex-config.bat
 
-# Explicitly ignore NOTICE.md
+# Explicitly ignore NOTICE.md and release bundles
 /NOTICE.md
+/release/
 
 # 2. Build output, wherever it appears, including inside an admitted folder.
 bin/
