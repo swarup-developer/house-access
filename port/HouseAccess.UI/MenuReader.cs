@@ -426,15 +426,50 @@ public static class MenuReader
 		{
 			foreach (CanvasBase c in Cpp.FindAll<CanvasBase>(activeOnly: true))
 			{
-				if (!Cpp.Alive((UnityEngine.Object)(object)c) || !Cpp.Read(() => c.Modal, fallback: false) || IsBackgroundCanvas(c))
+				if (!Cpp.Alive((UnityEngine.Object)(object)c) || IsBackgroundCanvas(c))
 				{
 					continue;
 				}
 				try
 				{
-					if (((Component)c).gameObject.activeSelf)
+					GameObject go = Cpp.Read(() => ((Component)c).gameObject);
+					if ((UnityEngine.Object)(object)go != (UnityEngine.Object)null && go.activeSelf)
 					{
-						return true;
+						// Modal panels are always menus. Non-modal canvases are menus too
+						// if they look like settings/options panels or if the EventSystem is
+						// selecting a widget inside them.
+						if (Cpp.Read(() => c.Modal, fallback: false))
+							return true;
+	
+						string name = ((UnityEngine.Object)go).name ?? string.Empty;
+						if (name.IndexOf("setting", StringComparison.OrdinalIgnoreCase) >= 0
+							|| name.IndexOf("option", StringComparison.OrdinalIgnoreCase) >= 0)
+	
+							return true;
+	
+						// Check if any Selectable inside is currently selected.
+						try
+						{
+							EventSystem es = EventSystem.current;
+							if (Cpp.Alive((UnityEngine.Object)(object)es))
+							{
+								GameObject selected = Cpp.Read(() => es.currentSelectedGameObject);
+								if ((UnityEngine.Object)(object)selected != (UnityEngine.Object)null)
+								{
+								Transform root = ((Component)c).transform;
+								Transform t = selected.transform;
+									while ((UnityEngine.Object)(object)t != (UnityEngine.Object)null)
+									{
+										if ((UnityEngine.Object)(object)t == (UnityEngine.Object)(object)root)
+											return true;
+										t = t.parent;
+									}
+								}
+							}
+						}
+						catch
+						{
+						}
 					}
 				}
 				catch
