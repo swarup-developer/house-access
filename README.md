@@ -6,7 +6,6 @@
 ![Game: House Party](https://img.shields.io/badge/Game-House%20Party-blueviolet?style=for-the-badge&logo=unity)
 ![Platform: Windows 64--bit](https://img.shields.io/badge/Platform-Windows%20x64-blue?style=for-the-badge&logo=windows)
 ![Framework: BepInEx 6 IL2CPP](https://img.shields.io/badge/Framework-BepInEx%206%20IL2CPP-orange?style=for-the-badge)
-![Version: 1.1.11](https://img.shields.io/badge/Version-1.1.11-informational?style=for-the-badge)
 
 ### The Complete Screen Reader Accessibility Mod for *House Party*
 *Spoken menus, dialogues, 3D room radar, spatial audio beacons, and full narrative freedom without sight.*
