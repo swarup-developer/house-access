@@ -199,12 +199,15 @@ When House Party transitioned to a modern single-assembly IL2CPP architecture, M
 
 Developers wishing to contribute or customize House Access can build the project directly:
 1. Install the **.NET 6 SDK**.
-2. Place the repository in `<House Party>\_houseaccess_work`.
-3. Build the project:
+2. Build the project:
    ```shell
    dotnet build port\HouseAccess.csproj -c Release
    ```
-4. Copy `port\bin\Release\HouseAccess.dll` to your `<House Party>\BepInEx\plugins\` directory.
+   The project compiles against the BepInEx copy stashed in the repo's `tmp\BepInEx788-aside` folder by default, so it builds out of the box from any location. To compile against a real game install instead, point `BepInExRoot` at its `BepInEx` folder:
+   ```shell
+   dotnet build port\HouseAccess.csproj -c Release -p:BepInExRoot="D:\game\House Party\BepInEx"
+   ```
+3. Copy `port\bin\Release\HouseAccess.dll` to your `<House Party>\BepInEx\plugins\` directory.
 
 ---
 

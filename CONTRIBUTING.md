@@ -61,15 +61,14 @@ nothing here can be built without them.
 - The project targets `net6.0`, C# 10, and builds against BepInEx 6 for IL2CPP,
   x64. Build `6.0.0-be.785` is the one the mod is developed and played on.
 - `port/HouseAccess.csproj` carries 126 assembly references: four from
-  `..\..\BepInEx\core` and 122 from `..\..\BepInEx\interop`. Those interop
+  `$(BepInExRoot)\core` and 122 from `$(BepInExRoot)\interop`. Those interop
   assemblies are generated on your machine, from your copy of the game, the first
   time you run it under BepInEx. They are not in this repository and must not be
   added to it.
-- Because those references are relative, **the project has to live exactly two
-  levels below your game folder.** Clone this repository to
-  `<House Party>\_houseaccess_work`, so the project sits at
-  `<House Party>\_houseaccess_work\port`. Clone it anywhere else and the
-  references will not resolve.
+- `BepInExRoot` defaults to the copy stashed in the repository's own
+  `tmp\BepInEx788-aside` folder, so the project builds out of the box from any
+  location. To compile against a real game install instead, override it:
+  `dotnet build port\HouseAccess.csproj -p:BepInExRoot="<House Party>\BepInEx"`.
 - Set `UnityLogListening = false` under `[Logging]` in
   `BepInEx\config\BepInEx.cfg` before you run the game. This is not a preference.
   With it left on, the game dies with an access violation during start-up, before
