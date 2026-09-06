@@ -19,7 +19,6 @@ namespace HouseAccess;
 public class HouseAccessMod : BasePlugin
 {
 	private Harmony _harmony;
-	private bool _firstScan;
 
 	public override void Load()
 	{
@@ -29,7 +28,6 @@ public class HouseAccessMod : BasePlugin
 		Prefs.Init();
 		Overrides.Load();
 		CutsceneBridge.Load();
-		_firstScan = true;
 		Speaker.Init();
 		global::HouseAccess.Log.Info("Speech backend: " + Speaker.BackendName);
 		try
@@ -160,9 +158,7 @@ internal static class Driver
 			{
 				_greeted = true;
 				_descriptionAttempts = 1;
-				Log.Guard("Descriptions", LoadDescriptions);
-				Speaker.Say($"House Access ready, using {Speaker.BackendName}. Press {Prefs.KeyHelp.Value} for keys.", Pri.High);
-				SettingsBridge.ScanAndLogSettingsControls();
+				Log.Guard("Descriptions", LoadDescriptions);				Speaker.Say($"House Access ready, using {Speaker.BackendName}. Press {Prefs.KeyHelp.Value} for keys.", Pri.High);
 			}
 			else if (_greeted && _descriptionAttempts < 5 && !Appearance.HasNames && Time.realtimeSinceStartup > _greetAt + 20f * _descriptionAttempts)
 			{

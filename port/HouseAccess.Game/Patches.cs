@@ -112,17 +112,11 @@ public static class Patches
 		Patch(typeof(MiniGameManager), "OnEndGame", "OnGameEnd");
 		if (Prefs.PatchPreferences.Value)
 		{
-			// SettingsManager is the game's settings/preferences controller.
-			// Patch its initialisation and apply methods so that opening a settings
-			// panel and changing a value is spoken aloud.
-			Patch(typeof(SettingsManager), "InitializeSettings", "OnSettingsInitialized");
-			Patch(typeof(SettingsManager), "InitializeMainSettings", "OnSettingsInitialized");
-			Patch(typeof(SettingsManager), "SetAudioSettings", "OnSettingsInitialized");
-			Patch(typeof(SettingsManager), "ApplyGraphicsSettings", "OnSettingsChanged");
-			Patch(typeof(SettingsManager), "TryApplyCensorshipSettings", "OnSettingsChanged");
-			Patch(typeof(SettingsManager), "InitializeGameplaySettings", "OnSettingsInitialized");
-			Patch(typeof(SettingsManager), "TryApplyLegacyIntimacySettings", "OnSettingsChanged");
-			Patch(typeof(SettingsManager), "TryApplyShowTutorialSettings", "OnSettingsChanged");
+			// SettingsManager methods are obfuscated in this build and cannot be
+			// patched reliably. The settings canvas is still announced by the
+			// MenuReader when it opens, and sliders/toggles are read by the
+			// widget-focus patches below.
+			Log.Info("SettingsManager patches skipped (methods not found in this build).");
 		}
 		else
 		{
@@ -131,19 +125,7 @@ public static class Patches
 		Log.Info($"Harmony: {Applied} patches applied, {Failed} skipped.");
 	}
 
-	private static void OnSettingsInitialized()
-	{
-		FirstCall("SettingsManager settings panel opened");
-		Guard(delegate
-		{
-			Speaker.Say("Settings opened.", Pri.High);
-		});
-	}
 
-	private static void OnSettingsChanged()
-	{
-		Guard(SettingsBridge.AnnounceCurrentSettings);
-	}
 
 	/// <summary>
 	/// Hooks Driver.Pump onto game methods that Unity already calls every frame.
@@ -392,7 +374,15 @@ public static class Patches
 		int bound = Mathf.Min(tupleCount, Mathf.Min(buttonCount, slotCount));
 		string sig = __0 + " of " + tupleCount + " options, " + buttonCount + " buttons, " + slotCount + " slots";
 		float unscaledTime = Time.unscaledTime;
-		if (__0 >= 0 && bound > 0 && __0 < bound)
+		// The tuples list (BHNCIKDJNOO) and the native button/slot arrays can
+		// briefly disagree during a wheel rebuild. If they disagree at all, skip
+		// to avoid an ArgumentOutOfRangeException from native OnChoose.
+		// But also allow the call when tuples match buttons OR tuples match slots
+		// (a wheel can have empty slots with buttons+labels, or vice versa).
+		bool safe = bound > 0 && __0 < bound
+			&& (tupleCount == buttonCount || tupleCount == slotCount
+				|| buttonCount == slotCount);
+		if (__0 >= 0 && safe)
 		{
 			if (sig != _lastWheelGuardSig && unscaledTime - _lastWheelGuardPass > 2f)
 			{
