@@ -11,9 +11,16 @@
 ### The Complete Screen Reader Accessibility Mod for *House Party*
 *Spoken menus, dialogues, 3D room radar, spatial audio beacons, and full narrative freedom without sight.*
 
-[Game on GOG](https://www.gog.com/en/game/house_party) • [Download BepInEx 6](https://builds.bepinex.dev/projects/bepinex_be) • [Changelog](CHANGELOG.md) • [Installation Guide](#-getting-started--installation) • [Controls & Keybinds](#-controls--how-to-play)
+[Game on GOG](https://www.gog.com/en/game/house_party) • [Download BepInEx 6](https://builds.bepinex.dev/projects/bepinex_be) • [Original AudioGames.net Thread](https://forum.audiogames.net/topic/60065/house-party-access-mod-18/) • [Changelog](CHANGELOG.md) • [Installation Guide](#-getting-started--installation)
 
 ---
+---
+
+### ⚠️ Content Warning (18+ Adult Content)
+*House Party* is an explicit, mature-rated 3D comedy adventure game containing strong sexual content, nudity, coarse language, alcohol/substance use, and adult humor. Please ensure you meet the legal age requirements in your region and are comfortable with adult themes before playing.
+
+---
+
 
 </div>
 
@@ -176,6 +183,17 @@ To keep expectations transparent: modern House Party uses a single-assembly IL2C
 Rather than failing silently, House Access will audibly let you know if you press a key corresponding to an unsupported feature.
 
 ---
+
+
+## 📜 Heritage, Credits & Attribution
+
+House Access was originally created by **hasajaza** as an accessibility mod for MelonLoader and shared with the blind gaming community on [AudioGames.net Forum (Topic #60065)](https://forum.audiogames.net/topic/60065/house-party-access-mod-18/).
+
+When House Party transitioned to a modern single-assembly IL2CPP architecture, MelonLoader 1.1.0 ceased to work. This repository honors hasajaza's original pioneering work by rebuilding and porting the mod to **BepInEx 6 IL2CPP**, fixing start-up access violations, ensuring sliders/dropdowns speak in real time, and making the modern game completely playable once again.
+
+- **Original Concept & Mod Author**: **hasajaza** ([AudioGames.net Thread](https://forum.audiogames.net/topic/60065/house-party-access-mod-18/))
+- **BepInEx 6 IL2CPP Port & v1.1.3 Fixes**: Rebuilt with love for the blind and visually impaired gaming community.
+- **Third-Party Libraries**: UniversalSpeech, NVDA Controller Client, ZDSR, and BepInEx.
 
 ## 🔧 Building From Source
 
