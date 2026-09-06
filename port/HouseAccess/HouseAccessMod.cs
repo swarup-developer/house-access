@@ -15,7 +15,7 @@ using UnityEngine.SceneManagement;
 
 namespace HouseAccess;
 
-[BepInPlugin("HouseAccess.HouseAccess", "House Access", "1.1.6")]
+[BepInPlugin("HouseAccess.HouseAccess", "House Access", "1.1.7")]
 public class HouseAccessMod : BasePlugin
 {
 	private Harmony _harmony;
@@ -23,7 +23,7 @@ public class HouseAccessMod : BasePlugin
 	public override void Load()
 	{
 		global::HouseAccess.Log.Bind(base.Log);
-		global::HouseAccess.Log.Info("House Access 1.1.6 (BepInEx build) starting. Injection-free driver, menu value tracking, held first focus, label fallbacks, repeat key in menus.");
+		global::HouseAccess.Log.Info("House Access 1.1.7 (BepInEx build) starting. Injection-free driver, menu value tracking, held first focus, label fallbacks, repeat key in menus.");
 		MelonLoader.MelonPreferences.Bind(Config);
 		Prefs.Init();
 		Overrides.Load();
@@ -85,6 +85,8 @@ internal static class Driver
 	private static bool _enabled = true;
 
 	private static bool _greeted;
+
+	private static bool _descriptionsRetried;
 
 	private static float _greetAt;
 
@@ -157,6 +159,14 @@ internal static class Driver
 				_greeted = true;
 				Log.Guard("Descriptions", LoadDescriptions);
 				Speaker.Say($"House Access ready, using {Speaker.BackendName}. Press {Prefs.KeyHelp.Value} for keys.", Pri.High);
+			}
+			else if (_greeted && !_descriptionsRetried && Time.realtimeSinceStartup > _greetAt + 20f)
+			{
+				// The greet-time scan can run before any characters have spawned (intro
+				// cutscene), which leaves the description template without names; try
+				// once more once the party is around.
+				_descriptionsRetried = true;
+				Log.Guard("Descriptions", LoadDescriptions);
 			}
 			Log.Guard("Find", Finder.Tick);
 			Log.Guard("Dialogue", DialogueBridge.Tick);

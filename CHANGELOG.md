@@ -1,11 +1,22 @@
 # House Access — changelog
 
-Newest first. Version 1.1.6 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.7 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.7 — description template and walk diagnostics
+
+- The character description file (`UserData\HouseAccess\descriptions.txt`) is
+  now completed with one blank `Name = ` line per known character when it has
+  never been filled in, and the scan is retried once the party has spawned.
+  "Loaded 0 character descriptions" was the untouched template, not a failure —
+  but you could not tell which names to write; now the file shows them.
+- Auto-walk fallback messages now include how far you still are from the target
+  when a movement mode gives up ("still 4.2 m away"), so `BepInEx\LogOutput.log`
+  can show whether the walk is progressing or truly stuck.
 
 ## 1.1.6 — arrow-browse the replies
 

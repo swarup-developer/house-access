@@ -53,11 +53,59 @@ public static class Appearance
 					}
 				}
 			}
+			if (_written.Count == 0)
+			{
+				AddMissingNames(knownNames);
+			}
 			Log.Info($"Loaded {_written.Count} character descriptions from {FilePath}");
 		}
 		catch (Exception ex)
 		{
 			Log.Warn("Could not load character descriptions: " + ex.Message);
+		}
+	}
+
+	private static void AddMissingNames(IEnumerable<string> knownNames)
+	{
+		// A file created by an earlier run has only the comment header, and one created
+		// before any characters existed has no names either, so the player cannot tell
+		// which names to write. Append a blank "Name = " line per known character, but
+		// only when nothing parsed, so a file the player actually filled in is never
+		// touched.
+		try
+		{
+			HashSet<string> existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach (string line in File.ReadAllLines(FilePath))
+			{
+				int num = line.IndexOf('=');
+				if (num > 0)
+				{
+					existing.Add(line.Substring(0, num).Trim());
+				}
+			}
+			List<string> lines = new List<string>(File.ReadAllLines(FilePath));
+			bool changed = false;
+			foreach (string name in knownNames)
+			{
+				if (string.IsNullOrWhiteSpace(name))
+				{
+					continue;
+				}
+				string text = name.Trim();
+				if (existing.Add(text))
+				{
+					lines.Add(text + " = ");
+					changed = true;
+				}
+			}
+			if (changed)
+			{
+				File.WriteAllLines(FilePath, lines.ToArray());
+			}
+		}
+		catch (Exception ex)
+		{
+			Log.Warn("Could not complete the description file: " + ex.Message);
 		}
 	}
 

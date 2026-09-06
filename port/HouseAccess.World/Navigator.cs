@@ -761,17 +761,18 @@ public static class Navigator
 		if (!(num < 1.6f))
 		{
 			string text = (_moverForThisWalk ?? Prefs.MoveMode?.Value ?? "warp").Trim().ToLowerInvariant();
+			float remain = Vector3.Distance(pos, _fixedGoal);
 			if (text == "warp")
 			{
 				_moverForThisWalk = "frame";
 				_watchSince = Time.unscaledTime;
-				Log.Warn("Warping did not move the player; trying frame movement.");
+				Log.Warn($"Warping did not move the player (still {remain:0.0} m away); trying frame movement.");
 			}
 			else if (text == "frame")
 			{
 				_moverForThisWalk = "direct";
 				_watchSince = Time.unscaledTime;
-				Log.Warn("Frame movement did not move the player; driving the controller.");
+				Log.Warn($"Frame movement did not move the player (still {remain:0.0} m away); driving the controller.");
 			}
 			else if (_nudges < 3)
 			{
