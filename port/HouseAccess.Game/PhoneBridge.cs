@@ -525,7 +525,7 @@ public static class PhoneBridge
 			{
 				ReadCurrentShot();
 			}
-			else if (Keys.Hit(Prefs.KeyCancel) || Input.GetKeyDown(KeyCode.Escape))
+			else if (Keys.Hit(Prefs.KeyCancel) || Keys.Down(KeyCode.Escape))
 			{
 				CloseViewer();
 			}
@@ -557,11 +557,11 @@ public static class PhoneBridge
 
 		if (GalleryOpen)
 		{
-			if (Keys.Hit(Prefs.KeyUiNext) || Input.GetKeyDown(KeyCode.RightArrow))
+			if (Keys.Hit(Prefs.KeyUiNext) || Keys.Down(KeyCode.RightArrow))
 			{
 				StepPhoto(1);
 			}
-			else if (Keys.Hit(Prefs.KeyUiPrev) || Input.GetKeyDown(KeyCode.LeftArrow))
+			else if (Keys.Hit(Prefs.KeyUiPrev) || Keys.Down(KeyCode.LeftArrow))
 			{
 				StepPhoto(-1);
 			}
@@ -569,7 +569,7 @@ public static class PhoneBridge
 			{
 				ReadCurrentPhoto();
 			}
-			else if (Keys.Hit(Prefs.KeyCancel) || Input.GetKeyDown(KeyCode.Escape))
+			else if (Keys.Hit(Prefs.KeyCancel) || Keys.Down(KeyCode.Escape))
 			{
 				CloseAllScreens();
 				_inGallery = false;
@@ -578,7 +578,7 @@ public static class PhoneBridge
 			return;
 		}
 
-		if (Keys.Hit(Prefs.KeyCancel) || Input.GetKeyDown(KeyCode.Escape))
+		if (Keys.Hit(Prefs.KeyCancel) || Keys.Down(KeyCode.Escape))
 		{
 			string text = OpenScreenName();
 			if (!string.IsNullOrWhiteSpace(text))
@@ -600,19 +600,19 @@ public static class PhoneBridge
 			}
 		}
 
-		if (Keys.Hit(Prefs.KeyUiNext) || Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.DownArrow))
+		if (Keys.Hit(Prefs.KeyUiNext) || Keys.Down(KeyCode.RightArrow) || Keys.Down(KeyCode.DownArrow))
 		{
 			_appIndex = (_appIndex + 1) % ScreenNames.Length;
 			SpeakApp();
 			return;
 		}
-		if (Keys.Hit(Prefs.KeyUiPrev) || Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.UpArrow))
+		if (Keys.Hit(Prefs.KeyUiPrev) || Keys.Down(KeyCode.LeftArrow) || Keys.Down(KeyCode.UpArrow))
 		{
 			_appIndex = (_appIndex - 1 + ScreenNames.Length) % ScreenNames.Length;
 			SpeakApp();
 			return;
 		}
-		if (Keys.Hit(Prefs.KeyUiActivate) || Input.GetKeyDown(KeyCode.Return))
+		if (Keys.Hit(Prefs.KeyUiActivate) || Keys.Down(KeyCode.Return))
 		{
 			OpenApp(_appIndex);
 			return;
@@ -625,9 +625,9 @@ public static class PhoneBridge
 
 		for (int i = 0; i < Math.Min(9, ScreenNames.Length); i++)
 		{
-			if (Input.GetKeyDown((KeyCode)(KeyCode.Alpha1 + i)) || Input.GetKeyDown((KeyCode)(KeyCode.Keypad1 + i)))
+			if (Keys.Down((KeyCode)(KeyCode.Alpha1 + i)) || Keys.Down((KeyCode)(KeyCode.Keypad1 + i)))
 			{
-				if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
+				if (Keys.Ctrl)
 				{
 					OpenApp(i);
 					break;

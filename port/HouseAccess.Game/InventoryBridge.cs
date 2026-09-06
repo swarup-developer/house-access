@@ -414,7 +414,7 @@ public static class InventoryBridge
 
 	private static void HandleKeys()
 	{
-		if (Input.GetKeyDown(KeyCode.Escape))
+		if (Keys.Down(KeyCode.Escape))
 		{
 			CloseIfOpen();
 			return;

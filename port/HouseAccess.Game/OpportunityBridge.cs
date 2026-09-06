@@ -349,22 +349,22 @@ public static class OpportunityBridge
 		{
 			return;
 		}
-		if (Input.GetKeyDown(KeyCode.Escape))
+		if (Keys.Down(KeyCode.Escape))
 		{
 			CloseIfOpen();
 			return;
 		}
-		if (Input.GetKeyDown(KeyCode.Tab))
+		if (Keys.Down(KeyCode.Tab))
 		{
 			SwitchTab();
 			return;
 		}
-		if (Keys.Hit(Prefs.KeyUiNext) || Input.GetKeyDown(KeyCode.DownArrow))
+		if (Keys.Hit(Prefs.KeyUiNext) || Keys.Down(KeyCode.DownArrow))
 		{
 			Move(1);
 			return;
 		}
-		if (Keys.Hit(Prefs.KeyUiPrev) || Input.GetKeyDown(KeyCode.UpArrow))
+		if (Keys.Hit(Prefs.KeyUiPrev) || Keys.Down(KeyCode.UpArrow))
 		{
 			Move(-1);
 			return;
@@ -381,7 +381,7 @@ public static class OpportunityBridge
 		}
 		for (int i = 0; i < Math.Min(9, Entries.Count); i++)
 		{
-			if (Input.GetKeyDown((KeyCode)(KeyCode.Alpha1 + i)) || Input.GetKeyDown((KeyCode)(KeyCode.Keypad1 + i)))
+			if (Keys.Down((KeyCode)(KeyCode.Alpha1 + i)) || Keys.Down((KeyCode)(KeyCode.Keypad1 + i)))
 			{
 				_index = i;
 				SpeakCurrent();
