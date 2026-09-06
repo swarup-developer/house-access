@@ -71,6 +71,7 @@ public static class DialogueBridge
 		Buttons.Clear();
 		Labels.Clear();
 		_index = -1;
+		Log.Info("Dialogue started with " + (string.IsNullOrWhiteSpace(speaker) ? "unknown speaker" : speaker) + ".");
 	}
 
 	public static void NotifyLine(string cleanText)
@@ -166,14 +167,19 @@ public static class DialogueBridge
 
 	public static void NotifyEnded()
 	{
+		Log.Info("Dialogue ended.");
 		Reset();
 		Speaker.Say("Conversation ended.");
 	}
 
 	public static void Tick()
 	{
-		if (!GameRefs.DialogueActive)
+		if (!GameRefs.DialogueActive && !_pending && !_listReady && !_repliesHeld)
 		{
+			// This build hides the dialogue UI's open state; the engine's static
+			// reference is the only signal, and it is not trustworthy while replies
+			// are on screen. Once replies are pending, held or collected, keep
+			// treating the conversation as active so the list is still read out.
 			if (Active && Time.unscaledTime - _lastActiveAt > 1.5f)
 			{
 				NotifyEnded();
@@ -199,7 +205,7 @@ public static class DialogueBridge
 		if (_pending && Time.unscaledTime - _pendingSince > 4f)
 		{
 			_pending = false;
-			Log.Debug("Dialogue responses never appeared; giving up on this batch.");
+			Log.Warn("Dialogue responses never appeared; giving up on this batch.");
 			return;
 		}
 		if (!Cpp.Alive((UnityEngine.Object)(object)ui))
@@ -245,11 +251,16 @@ public static class DialogueBridge
 		_index = 0;
 		_repliesHeld = true;
 		_repliesHeldSince = Time.unscaledTime;
+		Log.Info("Dialogue: " + Buttons.Count + " repl" + (Buttons.Count == 1 ? "y" : "ies") + " collected.");
 	}
 
 	private static void ReleaseReplies()
 	{
-		if (_repliesHeld && Time.unscaledTime - _repliesHeldSince > 20f)
+		// The old build waited 20 seconds before reading the replies, which on this
+		// game build (where the voiced line cannot be detected) meant twenty seconds
+		// of silence after the line - indistinguishable from a broken mod. The list
+		// is read after a short pause instead, so the conversation stays navigable.
+		if (_repliesHeld && Time.unscaledTime - _repliesHeldSince > 1.2f)
 		{
 			_repliesHeld = false;
 			Announce();

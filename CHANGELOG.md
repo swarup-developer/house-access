@@ -1,11 +1,29 @@
 # House Access — changelog
 
-Newest first. Version 1.1.4 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.5 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.5 — conversation replies read out
+
+Talking to someone left the reply list unspoken: the mod waited twenty
+seconds before reading your options — a leftover from a build where it could
+detect when the voiced line finished, which this one cannot — so after the
+speaker's line you heard silence and the conversation looked dead.
+
+- The reply list is now read out shortly after it appears, right after the
+  speaker's line: "5 replies. 1. … 2. …". Numbers still read a single reply and
+  Control+number still picks one, and the list stays navigable for the whole
+  conversation.
+- The conversation is treated as active while replies are pending, held or
+  collected, even when the game's own "dialogue open" signal is unreliable, so
+  a missed signal can no longer silence the list.
+- Dialogue start, reply collection and dialogue end are logged, and a reply
+  batch that never appears is now a warning instead of a hidden debug line, so
+  a report like this one can be diagnosed from `BepInEx\LogOutput.log`.
 
 ## 1.1.4 — builds anywhere
 
