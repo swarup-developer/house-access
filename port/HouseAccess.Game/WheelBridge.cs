@@ -57,6 +57,48 @@ public static class WheelBridge
 		_title = null;
 	}
 
+	// Option labels captured from RadialMenu.SetInteractions' second argument.
+	// On game builds where the wheel's stripped tuple field (BHNCIKDJNOO on GOG
+	// v1.1.7) is renamed or gone, this argument is the only readable list of what
+	// the wheel offers - without it the wheel opens in silence.
+	private static readonly List<string> FallbackLabels = new List<string>();
+
+	/// <summary>True while the wheel's options came from the SetInteractions argument rather than the game's own collections.</summary>
+	public static bool FallbackMode => _fallbackMode && FallbackLabels.Count > 0;
+
+	private static bool _fallbackMode;
+
+	public static void NotifyLabelsFromSetInteractions(object labels)
+	{
+		FallbackLabels.Clear();
+		_fallbackMode = false;
+		if (labels == null)
+		{
+			return;
+		}
+		try
+		{
+			Il2CppSystem.Collections.Generic.List<string> list = labels as Il2CppSystem.Collections.Generic.List<string>;
+			if (list == null)
+			{
+				return;
+			}
+			int count = Cpp.CountOf<string>(list);
+			for (int i = 0; i < count; i++)
+			{
+				string label = Cpp.AtOf<string>(list, i);
+				if (!string.IsNullOrWhiteSpace(label))
+				{
+					FallbackLabels.Add(TextUtil.Humanize(label));
+				}
+			}
+			_fallbackMode = FallbackLabels.Count > 0;
+		}
+		catch
+		{
+		}
+	}
+
 	public static void NotifyOpened(RadialMenu menu, string centerLabel, InteractiveItem item)
 	{
 		_openingUntil = 0f;
@@ -83,9 +125,27 @@ public static class WheelBridge
 			return;
 		}
 		// The wheel's current options live in a stripped-named member on this build; it
-		// is read as its (label, enabled) list.
-		Il2CppSystem.Collections.Generic.List<Il2CppSystem.ValueTuple<string, bool>> list =
-			Cpp.Read(() => _menu.BHNCIKDJNOO);
+		// is read as its (label, enabled) list. When that member is renamed or gone
+		// (newer game builds), fall back to the labels captured from SetInteractions.
+		Il2CppSystem.Collections.Generic.List<Il2CppSystem.ValueTuple<string, bool>> list = null;
+		try
+		{
+			list = Cpp.Read(() => _menu.BHNCIKDJNOO);
+		}
+		catch
+		{
+			list = null;
+		}
+		if (Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(list) == 0 && FallbackMode)
+		{
+			Labels.AddRange(FallbackLabels);
+			for (int num3 = 0; num3 < Labels.Count; num3++)
+			{
+				Enabled.Add(item: true);
+				SourceIndex.Add(num3);
+			}
+			return;
+		}
 		int num = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(list);
 		for (int num2 = 0; num2 < num; num2++)
 		{

@@ -15,7 +15,7 @@ using UnityEngine.SceneManagement;
 
 namespace HouseAccess;
 
-[BepInPlugin("HouseAccess.HouseAccess", "House Access", "1.1.11")]
+[BepInPlugin("HouseAccess.HouseAccess", "House Access", "1.1.13")]
 public class HouseAccessMod : BasePlugin
 {
 	private Harmony _harmony;
@@ -23,7 +23,7 @@ public class HouseAccessMod : BasePlugin
 	public override void Load()
 	{
 		global::HouseAccess.Log.Bind(base.Log);
-		global::HouseAccess.Log.Info("House Access 1.1.11 (BepInEx build) starting. Injection-free driver, menu value tracking, held first focus, label fallbacks, repeat key in menus.");
+		global::HouseAccess.Log.Info("House Access 1.1.13 (BepInEx build) starting. Injection-free driver, name-resolved game types, menu value tracking, held first focus, label fallbacks, repeat key in menus.");
 		MelonLoader.MelonPreferences.Bind(Config);
 		Prefs.Init();
 		Overrides.Load();
@@ -556,6 +556,11 @@ internal static class Driver
 		else if (Keys.Hit(Prefs.KeyDump))
 		{
 			Diagnostics.Dump();
+			Diagnostics.DumpHooks();
+		}
+		else if (Keys.Hit(Prefs.KeyHookReport))
+		{
+			Diagnostics.DumpHooks();
 		}
 	}
 }

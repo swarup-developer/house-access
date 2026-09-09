@@ -206,6 +206,57 @@ public static class Diagnostics
 		return string.Join("/", list);
 	}
 
+	/// <summary>
+	/// Writes hooks.txt: every Harmony hook the mod tries at startup, its candidate
+	/// type and method names, and how it ended. A hook that was skipped because the
+	/// running game build lacks a type or method shows exactly which names must be
+	/// added to support it - so a user on the Steam build can send hooks.txt and
+	/// the missing names can be added without any guesswork.
+	/// </summary>
+	public static void DumpHooks()
+	{
+		string path;
+		try
+		{
+			System.IO.Directory.CreateDirectory(Directory);
+			path = Path.Combine(Directory, "hooks.txt");
+		}
+		catch (Exception e)
+		{
+			Log.Error("Could not create dump directory", e);
+			Speaker.SayNow("Could not write the hook report.");
+			return;
+		}
+		StringBuilder stringBuilder = new StringBuilder();
+		stringBuilder.AppendLine("House Access hook report");
+		stringBuilder.AppendLine("Time  : " + DateTime.Now.ToString("u"));
+		stringBuilder.AppendLine("Unity : " + Application.unityVersion);
+		stringBuilder.AppendLine("Hooks : " + HouseAccess.Game.Patches.Applied + " applied, " + HouseAccess.Game.Patches.Failed + " skipped");
+		stringBuilder.AppendLine();
+		stringBuilder.AppendLine("How to read this: a hook marked SKIPPED names the type and method candidates it tried.");
+		stringBuilder.AppendLine("To support a newer game build, add its real type/method names to the candidate lists");
+		stringBuilder.AppendLine("in Patches.cs and rebuild - nothing else needs to change.");
+		stringBuilder.AppendLine();
+		foreach (HouseAccess.Game.Patches.HookRecord hook in HouseAccess.Game.Patches.Hooks)
+		{
+			stringBuilder.AppendLine((hook.Ok ? "OK     " : "SKIPPED") + " | " + hook.Feature);
+			stringBuilder.AppendLine("         types   : " + hook.TypeCandidates);
+			stringBuilder.AppendLine("         methods : " + hook.MethodCandidates);
+			stringBuilder.AppendLine("         result  : " + hook.Status);
+			stringBuilder.AppendLine();
+		}
+		try
+		{
+			File.WriteAllText(path, stringBuilder.ToString());
+			Speaker.SayNow(Patches.Failed + " of " + (Patches.Applied + Patches.Failed) + " hooks are not active on this game build. The hook report is in the UserData folder, HouseAccess, hooks dot txt.");
+		}
+		catch (Exception e2)
+		{
+			Log.Error("Hook report failed", e2);
+			Speaker.SayNow("Could not write the hook report.");
+		}
+	}
+
 	public static void Dump()
 	{
 		//IL_0b0a: Unknown result type (might be due to invalid IL or missing references)

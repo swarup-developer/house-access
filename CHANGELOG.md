@@ -1,11 +1,51 @@
 # House Access — changelog
 
-Newest first. Version 1.1.12 is the current release; 1.1.0 was the last one
+Newest first. Version 1.1.13 is the current release; 1.1.0 was the last one
 published before it.
 
 House Access is developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.13 — the Steam build can no longer silence the whole mod
+
+Steam users on the current House Party build (Unity 2022.3.62f2) got a fully
+silent mod: `Harmony setup failed entirely: TypeLoadException: Could not load
+type 'EekUI.DialogueUI'`, followed by "No per-frame host could be patched".
+The cause was structural. Apply passed every game type to the patch helper as
+`typeof(...)`, and the JIT needs a type to exist before it can compile a call
+that names it - so the very first missing type threw while Apply was being
+compiled, and everything after that point, including every per-frame driver
+host, never ran. One renamed or removed interop type took the entire mod down.
+
+All of that is rebuilt around name-based runtime resolution:
+
+- Every game type in the patch list (DialogueUI, RadialMenu, EekUIButton, the
+  driver hosts, and so on) is now looked up by NAME when the mod starts, with
+  fallbacks for both interop namespace spellings. A type that is not present in
+  the running game build now costs one log line and its own feature - nothing
+  else is affected.
+- Patch bodies no longer name game types in their parameter lists (the same JIT
+  trap, one level down). They take untyped instances and cast inside try/catch,
+  so a missing type can only disable the one announcement it belongs to.
+- Every skipped hook is logged individually ("the type is not present in this
+  game build"), and the summary line lists how many hooks were applied and
+  skipped, so a log from a new game build shows exactly which names need to be
+  added next. Each attempt is also recorded in memory for the Ctrl+F7 hook
+  report (see below).
+- Method names are now candidate LISTS per hook (obfuscated placeholder first,
+  real name second where the original MelonLoader source had it). When a Steam
+  or future build's names are discovered, adding them to the list restores the
+  hook without code changes elsewhere.
+- The action wheel gains a label fallback: on builds where the wheel's option
+  list member is renamed, the labels passed to RadialMenu.SetInteractions are
+  used instead, so the wheel is still announced, navigable and choosable, and
+  the OnChoose guard does not block choices in that mode.
+- New hook report: Ctrl+F7 writes `UserData\HouseAccess\hooks.txt`, listing
+  every hook the mod tried with the candidate type and method names it looked
+  for and how each ended. Sending that one file after a game update shows
+  exactly which names to add - no LogOutput.log spelunking required. The full
+  diagnostics dump (Ctrl+F2) now includes it as well.
 
 ## 1.1.12 — accessible inventory menu, mobile phone, memories, and inspector
 

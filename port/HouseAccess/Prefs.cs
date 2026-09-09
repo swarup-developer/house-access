@@ -214,6 +214,8 @@ public static class Prefs
 
 	public static MelonPreferences_Entry<string> KeyDump;
 
+	public static MelonPreferences_Entry<string> KeyHookReport;
+
 	public static MelonPreferences_Entry<string> KeyToggleMod;
 
 	private static readonly Dictionary<string, Chord> ChordCache = new Dictionary<string, Chord>();
@@ -315,6 +317,7 @@ public static class Prefs
 		KeyCycleSpeech = E("KeyCycleSpeech", "Ctrl+F12", "Switch to the next speech engine and remember it.");
 		KeySpeechTest = E("KeySpeechTest", "Ctrl+F1", "Speak a test phrase through every available speech engine in turn.");
 		KeyDump = E("KeyDump", "Ctrl+F2", "Write a diagnostics dump to UserData/HouseAccess.");
+		KeyHookReport = E("KeyHookReport", "Ctrl+F7", "Write the hook report: every patch the mod tried, with the type and method names it looked for. This is the file to send in when a game update breaks hooks.");
 		KeyToggleMod = E("KeyToggleMod", "Ctrl+F3", "Enable or disable House Access.");
 		try
 		{

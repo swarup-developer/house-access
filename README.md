@@ -161,6 +161,7 @@ Every list in House Access (dialogue choices, inventory items, menus, action lis
 | **Ctrl + F12** | Cycle Speech Backends (NVDA ➔ UniversalSpeech ➔ SAPI) |
 | **Ctrl + F3** | Toggle Mod Speech On / Off |
 | **Ctrl + F2** | Dump Diagnostics Log to `UserData\HouseAccess` |
+| **Ctrl + F7** | Write Hook Report (all patches tried, with type/method names) to `UserData\HouseAccess\hooks.txt` |
 
 ---
 

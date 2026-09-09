@@ -602,14 +602,32 @@ public static class GameRefs
 		{
 			return slot;
 		}
-		Type typeFromHandle = typeof(T);
+		Type typeFromHandle;
+		try
+		{
+			// A missing interop type must not throw out of here: this runs from
+			// bridges every frame, and one TypeLoadException would take the whole
+			// frame's work with it.
+			typeFromHandle = typeof(T);
+		}
+		catch
+		{
+			return default(T);
+		}
 		float unscaledTime = Time.unscaledTime;
 		if (NextScan.TryGetValue(typeFromHandle, out var value) && unscaledTime < value)
 		{
 			return default(T);
 		}
 		NextScan[typeFromHandle] = unscaledTime + 0.5f;
-		slot = Cpp.FindOne<T>();
+		try
+		{
+			slot = Cpp.FindOne<T>();
+		}
+		catch
+		{
+			return default(T);
+		}
 		return slot;
 	}
 

@@ -13,6 +13,7 @@ using EekEvents;
 using EekUI;
 using HouseParty;
 using HouseParty.Interface;
+using Il2CppInterop.Runtime.InteropTypes;
 using UnityEngine;
 
 using Speaker = HouseAccess.Speech.Speaker;
@@ -38,12 +39,62 @@ public static class Patches
 
 	public static int Failed { get; private set; }
 
+	/// <summary>
+	/// One line per patch attempt: what the hook is for, which candidate type and
+	/// method names were tried, and how it ended. This is what the hook report
+	/// (Ctrl+F7) writes out, so a log from an unsupported game build shows exactly
+	/// which names must be added to support it.
+	/// </summary>
+	public sealed class HookRecord
+	{
+		public string Feature;
+
+		public string TypeCandidates;
+
+		public string MethodCandidates;
+
+		public bool Ok;
+
+		public string Status;
+	}
+
+	private static readonly List<HookRecord> HookLog = new List<HookRecord>();
+
+	/// <summary>Every patch attempt from startup, in order.</summary>
+	public static IReadOnlyList<HookRecord> Hooks => HookLog;
+
+	private static void Record(string feature, string[] typeNames, string[] methodNames, bool ok, string status)
+	{
+		HookLog.Add(new HookRecord
+		{
+			Feature = feature,
+			TypeCandidates = string.Join(", ", typeNames),
+			MethodCandidates = string.Join(", ", methodNames),
+			Ok = ok,
+			Status = status
+		});
+	}
+
 	/// <summary>Number of per-frame hosts driving Driver.Pump. Zero means the mod is inert.</summary>
 	public static int DriverHosts { get; private set; }
 
 	/// <summary>Number of hosts driving Driver.PumpLate. Zero is survivable, see Driver.PumpLate.</summary>
 	public static int DriverLateHosts { get; private set; }
 
+	/// <summary>
+	/// Every game type this file touches is resolved by NAME at runtime (GameType.Of),
+	/// never by typeof(...) in an argument list, and every patch body takes only
+	/// mod-safe parameter types (strings, ints, Il2CppObjectBase, UnityEngine types).
+	///
+	/// The reason is the Steam build: on Unity 2022.3.62f2 the interop assembly no
+	/// longer carries every type the GOG v1.1.7 build has (EekUI.DialogueUI was the
+	/// first one reported missing). A JITted typeof() for a missing type throws
+	/// TypeLoadException while the CALL is being evaluated - so when Apply passed
+	/// typeof(DialogueUI), the exception killed Apply itself before a single patch
+	/// (including every per-frame driver host) could be installed, and the whole mod
+	/// sat silent. With name lookup, a missing type now costs one log line and its
+	/// own feature, nothing else.
+	/// </summary>
 	public static void Apply(HarmonyLib.Harmony harmony)
 	{
 		_harmony = harmony;
@@ -52,54 +103,58 @@ public static class Patches
 		PatchDriverHosts();
 		// GOG v1.1.7 names its dialogue methods with interop placeholders; these four
 		// are the real methods that show a line, begin a conversation, fill the reply
-		// buttons and run when a reply button is clicked.
-		Patch(typeof(DialogueUI), "JDBGBGNEMJH", "OnDialogueText");
-		Patch(typeof(DialogueUI), "ECKCCJBNEAF", "OnDialogueStart");
-		Patch(typeof(DialogueUI), "ILHLCBDDIBH", "OnResponsesQueued");
-		Patch(typeof(DialogueUI), "OBDJDECDLHG", "OnResponseChosen");
+		// buttons and run when a reply button is clicked. On the Steam build the
+		// DialogueUI type itself is reported missing; each miss is skipped with one
+		// log line instead of taking the mod down. Add the Steam build's real method
+		// names to the candidate lists as they are discovered.
+		PatchNamed(DialogueUIType, "JDBGBGNEMJH", "OnDialogueText");
+		PatchNamed(DialogueUIType, "ECKCCJBNEAF", "OnDialogueStart");
+		PatchNamed(DialogueUIType, "ILHLCBDDIBH", "OnResponsesQueued");
+		PatchNamed(DialogueUIType, "OBDJDECDLHG", "OnResponseChosen");
 		// NarratorManager.NarrateText does not exist in this build; narration lines are
 		// announced through the DialogueUI patches above.
-		Patch(typeof(ThoughtBubbleManager), "Show", "OnThought");
-		Patch(typeof(InteractivePhone), "PlayTextMessageNotification", "OnTextMessage");
-		Patch(typeof(Thermostat), "Tamper", "OnTamper");
-		Patch(typeof(ThoughtBubble), "Display", "OnThoughtDisplay");
-		Patch(typeof(MessageHandler), "OnDisplayMessage", "OnDisplayMessage", new Type[3]
+		PatchNamed(ThoughtBubbleManagerType, "Show", "OnThought");
+		PatchNamed(InteractivePhoneType, "PlayTextMessageNotification", "OnTextMessage");
+		PatchNamed(ThermostatType, "Tamper", "OnTamper");
+		PatchNamed(ThoughtBubbleType, "Display", "OnThoughtDisplay");
+		PatchNamed(MessageHandlerType, "OnDisplayMessage", "OnDisplayMessage", new Type[3]
 		{
 			typeof(string),
 			typeof(string),
 			typeof(bool)
 		});
-		Patch(typeof(PopupManager), "Display", "OnPopup", new Type[2]
+		PatchNamed(PopupManagerType, "Display", "OnPopup", new Type[2]
 		{
 			typeof(string),
 			typeof(string)
 		});
-		Patch(typeof(UIRadialMenu), "SetInteractions", "OnRadialOpened");
-		Patch(typeof(UIRadialMenu), "OnChoose", "OnRadialChosen");
-		Patch(typeof(RadialMenu), "SetInteractions", "OnWheelOpened");
-		Patch(typeof(RadialMenu), "OnChoose", "OnWheelChosen");
+		PatchNamed(UIRadialMenuType, "SetInteractions", "OnRadialOpened");
+		PatchNamed(UIRadialMenuType, "OnChoose", "OnRadialChosen");
+		PatchNamed(RadialMenuType, "SetInteractions", "OnWheelOpened", new Type[2]
+		{
+			typeof(string),
+			typeof(Il2CppSystem.Collections.Generic.List<string>)
+		});
+		PatchNamed(RadialMenuType, "OnChoose", "OnWheelChosen", new Type[1] { typeof(int) });
 		// The game itself calls RadialMenu.OnChoose from native code while a wheel's
 		// options are being rebuilt at scene and conversation transitions, and an
 		// index that no longer exists makes the game throw ArgumentOutOfRangeException
 		// ("During invoking native->managed trampoline") and freeze. Prefix-guard the
 		// index so a choice that cannot name a current option is skipped instead.
-		PatchPrefix(typeof(RadialMenu), "OnChoose", "GuardWheelChoose");
-		Patch(typeof(InventoryUI), "OnItemClick", "OnInventoryClick");
+		PatchNamed(RadialMenuType, "OnChoose", "GuardWheelChoose", null, prefix: true);
+		PatchNamed(InventoryUIType, "OnItemClick", "OnInventoryClick");
 		if (Prefs.PatchWidgetFocus.Value)
 		{
 			// ToolTipProvider.ToolTipChanged is not named in this build; its single
 			// ToolTipAssociate method is the tooltip-change sink.
-			Patch(typeof(ToolTipProvider), "OKBDGDAJKNC", "OnToolTipChanged");
+			PatchNamed(ToolTipProviderType, "OKBDGDAJKNC", "OnToolTipChanged");
 			// Inventory/use-select hover methods do not exist in this GOG v1.1.7 build;
 			// widget focus is announced through the EekUI OnSelect patches below and the
 			// bridges' own navigation announcements.
-		}
-		if (Prefs.PatchWidgetFocus.Value)
-		{
-			Patch(typeof(EekUIButton), "OnSelect", "OnButtonCheckSelect");
-			Patch(typeof(EekUIToggle), "OnSelect", "OnToggleCheckSelect");
-			Patch(typeof(EekUISlider), "OnSelect", "OnSliderCheckSelect");
-			Patch(typeof(EekUIDropdown), "OnSelect", "OnDropdownCheckSelect");
+			PatchNamed(EekUIButtonType, "OnSelect", "OnButtonCheckSelect");
+			PatchNamed(EekUIToggleType, "OnSelect", "OnToggleCheckSelect");
+			PatchNamed(EekUISliderType, "OnSelect", "OnSliderCheckSelect");
+			PatchNamed(EekUIDropdownType, "OnSelect", "OnDropdownCheckSelect");
 		}
 		else
 		{
@@ -107,9 +162,9 @@ public static class Patches
 		}
 		// MiniGame.Scored / ReactionHandler.PerformEventTriggersForAllCharactersInVicinity
 		// patches are omitted: those classes do not exist in this GOG v1.1.7 build.
-		Patch(typeof(MiniGameManager), "OnStart1TGame", "OnGameStart");
-		Patch(typeof(MiniGameManager), "OnStart2TGame", "OnGameStart");
-		Patch(typeof(MiniGameManager), "OnEndGame", "OnGameEnd");
+		PatchNamed(MiniGameManagerType, "OnStart1TGame", "OnGameStart");
+		PatchNamed(MiniGameManagerType, "OnStart2TGame", "OnGameStart");
+		PatchNamed(MiniGameManagerType, "OnEndGame", "OnGameEnd");
 		if (Prefs.PatchPreferences.Value)
 		{
 			// SettingsManager methods are obfuscated in this build and cannot be
@@ -123,9 +178,48 @@ public static class Patches
 			Log.Info("Preference patches disabled (PatchPreferences = false).");
 		}
 		Log.Info($"Harmony: {Applied} patches applied, {Failed} skipped.");
+		if (Failed > 0)
+		{
+			Log.Info("Skipped hooks are per-feature: everything else keeps working. Send LogOutput.log to get the missing names added.");
+		}
 	}
 
+	// Candidate qualified names per game type, in the namespace spellings the two
+	// interop generations use (current builds expose unprefixed namespaces, older
+	// ones the "Il2Cpp" prefixes), then the bare name as a last resort. The first
+	// hit wins; a miss on every candidate means the type does not exist in this
+	// game build and its hooks are skipped with a single log line.
+	private static readonly string[] DialogueUIType = new string[3] { "EekUI.DialogueUI", "Il2CppEekUI.DialogueUI", "DialogueUI" };
 
+	private static readonly string[] ThoughtBubbleManagerType = new string[3] { "ThoughtBubbleManager", "Il2Cpp.ThoughtBubbleManager", "Il2CppEekCharacterEngine.ThoughtBubbleManager" };
+
+	private static readonly string[] InteractivePhoneType = new string[3] { "InteractivePhone", "Il2Cpp.InteractivePhone", "Il2CppHouseParty.InteractivePhone" };
+
+	private static readonly string[] ThermostatType = new string[3] { "HouseParty.Thermostat", "Il2CppHouseParty.Thermostat", "Thermostat" };
+
+	private static readonly string[] ThoughtBubbleType = new string[3] { "EekCharacterEngine.Support.ThoughtBubble", "Il2CppEekCharacterEngine.Support.ThoughtBubble", "ThoughtBubble" };
+
+	private static readonly string[] MessageHandlerType = new string[3] { "HouseParty.Interface.MessageHandler", "Il2CppHouseParty.Interface.MessageHandler", "MessageHandler" };
+
+	private static readonly string[] PopupManagerType = new string[3] { "EekCharacterEngine.PopupManager", "Il2CppEekCharacterEngine.PopupManager", "PopupManager" };
+
+	private static readonly string[] UIRadialMenuType = new string[3] { "EekUI.UIRadialMenu", "Il2CppEekUI.UIRadialMenu", "UIRadialMenu" };
+
+	private static readonly string[] RadialMenuType = new string[3] { "EekUI.RadialMenu", "Il2CppEekUI.RadialMenu", "RadialMenu" };
+
+	private static readonly string[] InventoryUIType = new string[3] { "InventoryUI", "Il2Cpp.InventoryUI", "Il2CppEekUI.InventoryUI" };
+
+	private static readonly string[] ToolTipProviderType = new string[3] { "EekCharacterEngine.Canvas.ToolTipProvider", "Il2CppEekCharacterEngine.Canvas.ToolTipProvider", "ToolTipProvider" };
+
+	private static readonly string[] EekUIButtonType = new string[3] { "EekUI.EekUIButton", "Il2CppEekUI.EekUIButton", "EekUIButton" };
+
+	private static readonly string[] EekUIToggleType = new string[3] { "EekUI.EekUIToggle", "Il2CppEekUI.EekUIToggle", "EekUIToggle" };
+
+	private static readonly string[] EekUISliderType = new string[3] { "EekUI.EekUISlider", "Il2CppEekUI.EekUISlider", "EekUISlider" };
+
+	private static readonly string[] EekUIDropdownType = new string[3] { "EekUI.EekUIDropdown", "Il2CppEekUI.EekUIDropdown", "EekUIDropdown" };
+
+	private static readonly string[] MiniGameManagerType = new string[3] { "EekCharacterEngine.Support.MiniGameManager", "Il2CppEekCharacterEngine.Support.MiniGameManager", "MiniGameManager" };
 
 	/// <summary>
 	/// Hooks Driver.Pump onto game methods that Unity already calls every frame.
@@ -148,39 +242,40 @@ public static class Patches
 	private static void PatchDriverHosts()
 	{
 		// Unity's own UI driver: alive in the main menu, the pause menu and in play.
-		if (PatchDriverHost(typeof(UnityEngine.EventSystems.EventSystem), "Update"))
+		// A UnityEngine type, safe to name directly (no game-build renames touch it).
+		if (PatchCore(new string[1] { "UnityEngine.EventSystems.EventSystem" }, new string[1] { "Update" }, "DriverTick", null, "that per-frame host does not exist in this build", prefix: false))
 		{
 			DriverHosts++;
 		}
 		// Game-side managers, for frames where no EventSystem is active.
-		if (PatchDriverHost(typeof(TransitionalSceneManager), "Update"))
+		if (PatchDriverHost(TransitionalSceneManagerType, "Update"))
 		{
 			DriverHosts++;
 		}
 		// EekGamesIntroManager overrides TransitionalSceneManager.Update, so the base
 		// patch above does not cover the intro scene; DisclaimerManager declares no
 		// Update of its own and is covered by the base.
-		if (PatchDriverHost(typeof(EekGamesIntroManager), "Update"))
+		if (PatchDriverHost(EekGamesIntroManagerType, "Update"))
 		{
 			DriverHosts++;
 		}
-		if (PatchDriverHost(typeof(GOGGalaxyManager), "Update"))
+		if (PatchDriverHost(GOGGalaxyManagerType, "Update"))
 		{
 			DriverHosts++;
 		}
-		if (PatchDriverHost(typeof(EekCharacterEngine.GameManager), "Update"))
+		if (PatchDriverHost(GameManagerType, "Update"))
 		{
 			DriverHosts++;
 		}
-		if (PatchDriverHost(typeof(EekCharacterEngine.AudioManager), "Update"))
+		if (PatchDriverHost(AudioManagerType, "Update"))
 		{
 			DriverHosts++;
 		}
-		if (PatchDriverHost(typeof(CutSceneManager), "Update"))
+		if (PatchDriverHost(CutSceneManagerType, "Update"))
 		{
 			DriverHosts++;
 		}
-		if (PatchDriverHost(typeof(MessageHandler), "Update"))
+		if (PatchDriverHost(MessageHandlerType, "Update"))
 		{
 			DriverHosts++;
 		}
@@ -190,21 +285,35 @@ public static class Patches
 		// LateUpdate in the player chain - HousePartyPlayerCharacter, BobbyCharacter
 		// and FemalePlayerCharacter declare none - so this covers both playable
 		// characters.
-		if (PatchDriverHostLate(typeof(EekCharacterEngine.PlayerCharacter), "LateUpdate"))
+		if (PatchDriverHostLate(PlayerCharacterType, "LateUpdate"))
 		{
 			DriverLateHosts++;
 		}
 		Log.Info($"Driver hosts: {DriverHosts} update, {DriverLateHosts} late.");
 	}
 
-	private static bool PatchDriverHost(Type target, string methodName)
+	private static readonly string[] TransitionalSceneManagerType = new string[3] { "TransitionalSceneManager", "Il2Cpp.TransitionalSceneManager", "Il2CppEekCharacterEngine.TransitionalSceneManager" };
+
+	private static readonly string[] EekGamesIntroManagerType = new string[3] { "EekGamesIntroManager", "Il2Cpp.EekGamesIntroManager", "Il2CppEekCharacterEngine.EekGamesIntroManager" };
+
+	private static readonly string[] GOGGalaxyManagerType = new string[3] { "GOGGalaxyManager", "Il2Cpp.GOGGalaxyManager", "Il2CppHouseParty.GOGGalaxyManager" };
+
+	private static readonly string[] GameManagerType = new string[3] { "EekCharacterEngine.GameManager", "Il2CppEekCharacterEngine.GameManager", "GameManager" };
+
+	private static readonly string[] AudioManagerType = new string[3] { "EekCharacterEngine.AudioManager", "Il2CppEekCharacterEngine.AudioManager", "AudioManager" };
+
+	private static readonly string[] CutSceneManagerType = new string[3] { "CutSceneManager", "Il2Cpp.CutSceneManager", "Il2CppEekCharacterEngine.CutSceneManager" };
+
+	private static readonly string[] PlayerCharacterType = new string[3] { "EekCharacterEngine.PlayerCharacter", "Il2CppEekCharacterEngine.PlayerCharacter", "PlayerCharacter" };
+
+	private static bool PatchDriverHost(string[] typeNames, string methodName)
 	{
-		return Patch(target, methodName, "DriverTick", null, "that per-frame host does not exist in this build");
+		return PatchCore(typeNames, new string[1] { methodName }, "DriverTick", null, "that per-frame host does not exist in this build", prefix: false);
 	}
 
-	private static bool PatchDriverHostLate(Type target, string methodName)
+	private static bool PatchDriverHostLate(string[] typeNames, string methodName)
 	{
-		return Patch(target, methodName, "DriverLateTick", null, "the late phase falls back to the update phase");
+		return PatchCore(typeNames, new string[1] { methodName }, "DriverLateTick", null, "the late phase falls back to the update phase", prefix: false);
 	}
 
 	private static void DriverTick()
@@ -217,73 +326,111 @@ public static class Patches
 		Guard(PumpLateAction);
 	}
 
-	private static bool Patch(Type target, string methodName, string postfixName)
+	private static void PatchNamed(string[] typeNames, string methodName, string postfixName)
 	{
-		return Patch(target, methodName, postfixName, null, "that announcement is disabled");
+		PatchCore(typeNames, new string[1] { methodName }, postfixName, null, "that announcement is disabled", prefix: false);
 	}
 
-	private static bool Patch(Type target, string methodName, string postfixName, Type[] paramTypes)
+	private static void PatchNamed(string[] typeNames, string methodName, string postfixName, Type[] paramTypes, bool prefix = false)
 	{
-		return Patch(target, methodName, postfixName, paramTypes, "that announcement is disabled");
+		PatchCore(typeNames, new string[1] { methodName }, postfixName, paramTypes, "that announcement is disabled", prefix);
 	}
 
-	private static bool Patch(Type target, string methodName, string postfixName, Type[] paramTypes, string skipNote)
+	/// <summary>
+	/// Resolves the target type by name, tries each candidate method name in order,
+	/// and installs the hook. Every failure mode - type missing, method missing,
+	/// Harmony refusing the patch - is caught here and costs one warning, never the
+	/// rest of Apply.
+	/// </summary>
+	private static bool PatchCore(string[] typeNames, string[] methodNames, string postfixName, Type[] paramTypes, string skipNote, bool prefix)
 	{
-		//IL_00a7: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00b4: Expected O, but got Unknown
-		try
+		Type target = null;
+		string[] array = typeNames;
+		foreach (string text in array)
 		{
-			MethodInfo methodInfo = ((paramTypes == null) ? AccessTools.Method(target, methodName, (Type[])null, (Type[])null) : AccessTools.Method(target, methodName, paramTypes, (Type[])null));
-			if (methodInfo == null)
+			target = GameType.Of(text);
+			if (target != null)
 			{
-				Failed++;
-				Log.Warn($"Harmony: {target.Name}.{methodName} not found; {skipNote}.");
-				return false;
+				break;
 			}
-			MethodInfo method = typeof(Patches).GetMethod(postfixName, BindingFlags.Static | BindingFlags.NonPublic);
-			_harmony.Patch((MethodBase)methodInfo, (HarmonyMethod)null, new HarmonyMethod(method), (HarmonyMethod)null, (HarmonyMethod)null, (HarmonyMethod)null);
-			Applied++;
-			Log.Debug("Harmony: patched " + target.Name + "." + methodName);
-			return true;
 		}
-		catch (Exception ex)
+		if (target == null)
 		{
 			Failed++;
-			Log.Warn($"Harmony: could not patch {target.Name}.{methodName}: {ex.Message}");
+			Record(postfixName, typeNames, methodNames, ok: false, "type not present in this game build");
+			Log.Warn("Harmony: " + typeNames[0] + "." + methodNames[0] + " skipped: the type is not present in this game build; " + skipNote + ".");
 			return false;
 		}
+		string[] array2 = methodNames;
+		foreach (string methodName in array2)
+		{
+			MethodInfo methodInfo;
+			try
+			{
+				methodInfo = ((paramTypes == null) ? AccessTools.Method(target, methodName, (Type[])null, (Type[])null) : AccessTools.Method(target, methodName, paramTypes, (Type[])null));
+			}
+			catch (Exception ex)
+			{
+				methodInfo = null;
+				Log.Warn("Harmony: looking up " + target.Name + "." + methodName + " threw: " + ex.Message);
+			}
+			if (methodInfo == null)
+			{
+				continue;
+			}
+			try
+			{
+				MethodInfo method = typeof(Patches).GetMethod(postfixName, BindingFlags.Static | BindingFlags.NonPublic);
+				HarmonyMethod value = new HarmonyMethod(method);
+				if (prefix)
+				{
+					_harmony.Patch(methodInfo, prefix: value);
+				}
+				else
+				{
+					_harmony.Patch(methodInfo, postfix: value);
+				}
+				Applied++;
+				Record(postfixName, typeNames, methodNames, ok: true, "patched " + target.FullName + "." + methodName);
+				Log.Debug("Harmony: patched " + target.Name + "." + methodName);
+				return true;
+			}
+			catch (Exception ex2)
+			{
+				Failed++;
+				Record(postfixName, typeNames, methodNames, ok: false, "patching " + target.FullName + "." + methodName + " threw: " + ex2.Message);
+				Log.Warn("Harmony: could not patch " + target.Name + "." + methodName + ": " + ex2.Message);
+				return false;
+			}
+		}
+		Failed++;
+		Record(postfixName, typeNames, methodNames, ok: false, "none of the candidate method names exist on the type; " + skipNote);
+		Log.Warn("Harmony: " + target.Name + "." + methodNames[0] + " not found; " + skipNote + ".");
+		return false;
 	}
 
-	private static bool PatchPrefix(Type target, string methodName, string prefixName)
+	/// <summary>
+	/// Casts a patched method's instance to a concrete interop type INSIDE a patch
+	/// body, so a missing game type costs only this feature. Never use game types in
+	/// a patch body's parameter list: the JIT needs them to compile the method itself.
+	/// </summary>
+	private static T Cast<T>(Il2CppObjectBase o) where T : Il2CppObjectBase
 	{
 		try
 		{
-			MethodInfo methodInfo = AccessTools.Method(target, methodName, (Type[])null, (Type[])null);
-			if (methodInfo == null)
-			{
-				Failed++;
-				Log.Warn($"Harmony: {target.Name}.{methodName} not found; the wheel index guard is disabled.");
-				return false;
-			}
-			MethodInfo method = typeof(Patches).GetMethod(prefixName, BindingFlags.Static | BindingFlags.NonPublic);
-			_harmony.Patch((MethodBase)methodInfo, new HarmonyMethod(method), (HarmonyMethod)null, (HarmonyMethod)null, (HarmonyMethod)null, (HarmonyMethod)null);
-			Applied++;
-			Log.Debug("Harmony: prefixed " + target.Name + "." + methodName);
-			return true;
+			return o?.TryCast<T>();
 		}
-		catch (Exception ex)
+		catch
 		{
-			Failed++;
-			Log.Warn($"Harmony: could not prefix {target.Name}.{methodName}: {ex.Message}");
-			return false;
+			return null;
 		}
 	}
 
-	private static void OnDialogueStart(CharacterBase __0)
+	private static void OnDialogueStart(Il2CppObjectBase __0)
 	{
 		Guard(delegate
 		{
-			string text = (_lastSpeaker = GameRefs.NameOf(__0));
+			string text = (_lastSpeaker = GameRefs.NameOf(Cast<CharacterBase>(__0)));
 			if (!string.IsNullOrEmpty(text))
 			{
 				Speaker.Say(text + " says:", Pri.High);
@@ -317,21 +464,29 @@ public static class Patches
 		Guard(DialogueBridge.NotifyResponseChosen);
 	}
 
-	private static void OnRadialOpened(UIRadialMenu __instance, string __0)
+	private static void OnRadialOpened(Il2CppObjectBase __instance, string __0)
 	{
 		Guard(delegate
 		{
-			RadialBridge.NotifyOpened(__instance, __0);
+			RadialBridge.NotifyOpened(Cast<UIRadialMenu>(__instance), __0);
 		});
 	}
 
-	private static void OnWheelOpened(RadialMenu __instance, string __0, List<string> __1)
+	private static void OnWheelOpened(Il2CppObjectBase __instance, string __0, object __1)
 	{
 		FirstCall("RadialMenu.SetInteractions");
 		Guard(delegate
 		{
-			InteractiveItem item = Cpp.Read(() => __instance.PGLCMOFAEMF);
-			WheelBridge.NotifyOpened(__instance, __0, item);
+			// The wheel's own option labels arrive as the SetInteractions argument on
+			// builds where the stripped tuple field is renamed; hand them to the
+			// bridge BEFORE the instance cast so they survive even if the cast fails.
+			WheelBridge.NotifyLabelsFromSetInteractions(__1);
+			RadialMenu menu = Cast<RadialMenu>(__instance);
+			if (menu != null)
+			{
+				InteractiveItem item = Cpp.Read(() => menu.PGLCMOFAEMF);
+				WheelBridge.NotifyOpened(menu, __0, item);
+			}
 		});
 	}
 
@@ -366,46 +521,67 @@ public static class Patches
 	/// lets a call through it logs the index and the three counts once per change,
 	/// so if a crash still occurs the next LogOutput.log shows exactly what passed.
 	/// </summary>
-	private static void GuardWheelChoose(RadialMenu __instance, int __0, ref bool __runOriginal)
+	private static void GuardWheelChoose(Il2CppObjectBase __instance, int __0, ref bool __runOriginal)
 	{
-		int tupleCount = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(Cpp.Read(() => __instance.BHNCIKDJNOO));
-		int buttonCount = Cpp.CountOf<UnityEngine.UI.Button>(Cpp.Read(() => __instance.FAIFDGOFNIA));
-		int slotCount = Cpp.CountOf<GameObject>(Cpp.Read(() => __instance.CBHGENOCLOF));
-		int bound = Mathf.Min(tupleCount, Mathf.Min(buttonCount, slotCount));
-		string sig = __0 + " of " + tupleCount + " options, " + buttonCount + " buttons, " + slotCount + " slots";
-		float unscaledTime = Time.unscaledTime;
-		// The tuples list (BHNCIKDJNOO) and the native button/slot arrays can
-		// briefly disagree during a wheel rebuild. If they disagree at all, skip
-		// to avoid an ArgumentOutOfRangeException from native OnChoose.
-		// But also allow the call when tuples match buttons OR tuples match slots
-		// (a wheel can have empty slots with buttons+labels, or vice versa).
-		// The tuples list is the source of truth for what options the wheel offers.
-		// Buttons and slots are visual elements that can outnumber the tuples (empty
-		// slots, decorative buttons). Trust tupleCount as the valid range, but also
-		// require it to match at least one visual collection when they disagree,
-		// because a wheel that is being rebuilt can have a stale tuples list.
-		// When tuples <= buttons and tuples <= slots, the tuples are likely accurate.
-		bool tuplesAreSmallest = tupleCount <= buttonCount && tupleCount <= slotCount;
-		bool safe = bound > 0 && __0 < bound
-			&& (tupleCount == buttonCount || tupleCount == slotCount || tuplesAreSmallest);
-		if (__0 >= 0 && safe)
+		// Inline try/catch rather than Guard(...): the decision to block lives in the
+		// ref parameter, which a closure cannot capture. If anything here throws, the
+		// default __runOriginal stays true, so a guard bug can never freeze the wheel
+		// - the game's own call goes through.
+		try
 		{
-			if (sig != _lastWheelGuardSig && unscaledTime - _lastWheelGuardPass > 2f)
+			RadialMenu menu = Cast<RadialMenu>(__instance);
+			if (menu == null)
 			{
-				_lastWheelGuardSig = sig;
-				_lastWheelGuardPass = unscaledTime;
-				Log.Info("Wheel choose passed the guard: " + sig + ".");
+				// The wheel type (or one of its members) is not readable on this game
+				// build; without a guard we must not block the game's own choice.
+				return;
 			}
-			return;
-		}
-		__runOriginal = false;
-		if (unscaledTime - _lastWheelGuardWarn > 1f)
-		{
-			_lastWheelGuardWarn = unscaledTime;
-			Log.Warn("Wheel choose of index " + __0 + " ignored: the wheel offers " + sig + " right now.");
-			if (WheelBridge.Active)
+			int tupleCount = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(Cpp.Read(() => menu.BHNCIKDJNOO));
+			int buttonCount = Cpp.CountOf<UnityEngine.UI.Button>(Cpp.Read(() => menu.FAIFDGOFNIA));
+			int slotCount = Cpp.CountOf<GameObject>(Cpp.Read(() => menu.CBHGENOCLOF));
+			int bound = Mathf.Min(tupleCount, Mathf.Min(buttonCount, slotCount));
+			string sig = __0 + " of " + tupleCount + " options, " + buttonCount + " buttons, " + slotCount + " slots";
+			float unscaledTime = Time.unscaledTime;
+			bool tuplesAreSmallest = tupleCount <= buttonCount && tupleCount <= slotCount;
+			bool safe = bound > 0 && __0 < bound
+				&& (tupleCount == buttonCount || tupleCount == slotCount || tuplesAreSmallest);
+			if (__0 >= 0 && safe)
 			{
-				Speaker.SayNow("That option is not available right now.");
+				if (sig != _lastWheelGuardSig && unscaledTime - _lastWheelGuardPass > 2f)
+				{
+					_lastWheelGuardSig = sig;
+					_lastWheelGuardPass = unscaledTime;
+					Log.Info("Wheel choose passed the guard: " + sig + ".");
+				}
+				return;
+			}
+			// The mod announced this wheel from the SetInteractions labels (fallback
+			// mode, the game's collections are not readable); the game's own collections
+			// being empty is expected there, so do not block the player's choice.
+			if (tupleCount == 0 && buttonCount == 0 && slotCount == 0 && WheelBridge.FallbackMode)
+			{
+				Log.Info("Wheel choose passed the guard (label fallback): " + sig + ".");
+				return;
+			}
+			__runOriginal = false;
+			if (unscaledTime - _lastWheelGuardWarn > 1f)
+			{
+				_lastWheelGuardWarn = unscaledTime;
+				Log.Warn("Wheel choose of index " + __0 + " ignored: the wheel offers " + sig + " right now.");
+				if (WheelBridge.Active)
+				{
+					Speaker.SayNow("That option is not available right now.");
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			try
+			{
+				Log.Warn("Wheel guard threw: " + ex.Message);
+			}
+			catch
+			{
 			}
 		}
 	}
@@ -418,12 +594,12 @@ public static class Patches
 		});
 	}
 
-	private static void OnTamper(Thermostat __instance)
+	private static void OnTamper(Il2CppObjectBase __instance)
 	{
 		FirstCall("Thermostat.Tamper");
 		Guard(delegate
 		{
-			Thermostats.NotifyTampered(__instance);
+			Thermostats.NotifyTampered(Cast<Thermostat>(__instance));
 		});
 	}
 
@@ -513,39 +689,55 @@ public static class Patches
 		}
 	}
 
-	private static void OnButtonCheckSelect(EekUIButton __instance)
+	private static void OnButtonCheckSelect(Il2CppObjectBase __instance)
 	{
 		FirstCall("EekUIButton.CheckSelect");
-		Guard(delegate
-		{
-			AnnounceWidget(((UnityEngine.Object)(object)__instance == (UnityEngine.Object)null) ? null : ((Component)__instance).gameObject, (UnityEngine.Object)(object)__instance != (UnityEngine.Object)null && __instance.DFNIODNIFOF);
-		});
+		AnnounceWidgetInstance(__instance);
 	}
 
-	private static void OnToggleCheckSelect(EekUIToggle __instance)
+	private static void OnToggleCheckSelect(Il2CppObjectBase __instance)
 	{
 		FirstCall("EekUIToggle.CheckSelect");
-		Guard(delegate
-		{
-			AnnounceWidget(((UnityEngine.Object)(object)__instance == (UnityEngine.Object)null) ? null : ((Component)__instance).gameObject, (UnityEngine.Object)(object)__instance != (UnityEngine.Object)null && __instance.DFNIODNIFOF);
-		});
+		AnnounceWidgetInstance(__instance);
 	}
 
-	private static void OnSliderCheckSelect(EekUISlider __instance)
+	private static void OnSliderCheckSelect(Il2CppObjectBase __instance)
 	{
 		FirstCall("EekUISlider.CheckSelect");
-		Guard(delegate
-		{
-			AnnounceWidget(((UnityEngine.Object)(object)__instance == (UnityEngine.Object)null) ? null : ((Component)__instance).gameObject, (UnityEngine.Object)(object)__instance != (UnityEngine.Object)null && __instance.DFNIODNIFOF);
-		});
+		AnnounceWidgetInstance(__instance);
 	}
 
-	private static void OnDropdownCheckSelect(EekUIDropdown __instance)
+	private static void OnDropdownCheckSelect(Il2CppObjectBase __instance)
 	{
 		FirstCall("EekUIDropdown.CheckSelect");
+		AnnounceWidgetInstance(__instance);
+	}
+
+	private static void AnnounceWidgetInstance(Il2CppObjectBase __instance)
+	{
 		Guard(delegate
 		{
-			AnnounceWidget(((UnityEngine.Object)(object)__instance == (UnityEngine.Object)null) ? null : ((Component)__instance).gameObject, (UnityEngine.Object)(object)__instance != (UnityEngine.Object)null && __instance.DFNIODNIFOF);
+			Component component = Cast<Component>(__instance);
+			if (component == null)
+			{
+				return;
+			}
+			GameObject gameObject = Cpp.Read(() => component.gameObject);
+			bool flag = true;
+			// The interop property name of the widget's "currently selected" flag is
+			// build-specific; a renamed field must not stop the announcement.
+			try
+			{
+				PropertyInfo property = component.GetType().GetProperty("DFNIODNIFOF");
+				if (property != null)
+				{
+					flag = Cpp.Read(() => (bool)property.GetValue(component), fallback: true);
+				}
+			}
+			catch
+			{
+			}
+			AnnounceWidget(gameObject, flag);
 		});
 	}
 
@@ -595,19 +787,11 @@ public static class Patches
 		});
 	}
 
-	private static void OnHintChosen(HintLoader __instance)
+	private static void OnToolTipChanged(Il2CppObjectBase __0)
 	{
 		Guard(delegate
 		{
-			LoadingBridge.OnHintChanged(__instance);
-		});
-	}
-
-	private static void OnToolTipChanged(ToolTipAssociate __0)
-	{
-		Guard(delegate
-		{
-			LoadingBridge.OnToolTipChanged(__0);
+			LoadingBridge.OnToolTipChanged(Cast<ToolTipAssociate>(__0));
 		});
 	}
 

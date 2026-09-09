@@ -14,6 +14,12 @@ This document tracks the current accessibility status, tested features, open tas
 ---
 
 ## What Was Worked On Recently
+* **Steam-Build Compatibility (v1.1.13):**
+  * Fixed the total-mod failure reported by Steam users (TypeLoadException on `EekUI.DialogueUI` → "No per-frame host could be patched").
+  * All Harmony patch targets now resolve game types BY NAME at runtime (GameType.Of) with interop namespace fallbacks; a missing type skips only its own hook.
+  * Patch bodies take untyped instances (Il2CppObjectBase) and cast inside try/catch, removing the JIT trap where a missing game type in a patch body signature kills the method.
+  * Method names are candidate lists (obfuscated + real names) so future dumps can add Steam names without restructuring.
+  * WheelBridge label fallback: wheel options come from the SetInteractions labels when the wheel's stripped option field is renamed; the OnChoose guard respects fallback mode.
 * **Input System Decoupling (Guide Chapter: Keyboard Navigation Design):**
   * Eliminated all direct calls to legacy UnityEngine.Input.GetKeyDown and Input.GetKey across OpportunityBridge, PhoneBridge, and InventoryBridge.
   * Routed all keyboard input through HouseAccess.InputLayer.Keys (Keys.Down, Keys.Held, Keys.Ctrl, Keys.NumberDown), preventing System.InvalidOperationException crashes caused by Unity's Input System player settings.

@@ -702,6 +702,7 @@ public static class Reporter
 		// them on this build, so announcing them would promise a key that does nothing. The two
 		// listed here are read, and both answer that fighting is unsupported here.
 		Group(stringBuilder, "Fighting", ("combat status", Prefs.KeyCombatStatus), ("end the fight", Prefs.KeyEndFight));
+		Group(stringBuilder, "Diagnostics", ("write a diagnostics dump", Prefs.KeyDump), ("write the hook report for bug reports", Prefs.KeyHookReport));
 		stringBuilder.Append("In any list, arrows move and enter chooses. ");
 		// Spelled out because the rule is only useful if its edges are known: the keypad works
 		// as well as the number row, zero is the tenth item rather than nothing, ten is as far
