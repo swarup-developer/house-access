@@ -25,11 +25,11 @@ public static class RadialBridge
 
 	private static string _centre;
 
-	private static float _openedAt;
-
 	private static float _lastSeenOpen;
 
-	public static bool Active => (UnityEngine.Object)(object)_menu != (UnityEngine.Object)null && Labels.Count > 0;
+	private static bool _ready;
+
+	public static bool Active => Cpp.Alive(_menu) && _menu.IsShowing && Labels.Count > 0;
 
 	public static void Reset()
 	{
@@ -38,6 +38,7 @@ public static class RadialBridge
 		OptionIndex.Clear();
 		_cursor = -1;
 		_centre = null;
+		_ready = false;
 	}
 
 	public static void CloseIfOpen()
@@ -50,7 +51,7 @@ public static class RadialBridge
 		bool flag;
 		try
 		{
-			flag = ((Component)menu).gameObject.activeInHierarchy;
+			flag = menu.IsShowing;
 		}
 		catch
 		{
@@ -73,9 +74,9 @@ public static class RadialBridge
 
 	public static void NotifyOpened(UIRadialMenu menu, string centerLabel)
 	{
+		_ready = false;
 		_menu = menu;
 		_centre = TextUtil.Clean(centerLabel);
-		_openedAt = Time.unscaledTime;
 		_lastSeenOpen = Time.unscaledTime;
 		Labels.Clear();
 		OptionIndex.Clear();
@@ -84,10 +85,14 @@ public static class RadialBridge
 
 	public static void NotifyChosen(int option)
 	{
+		if (Cpp.Alive(_menu) && _menu.IsShowing)
+		{
+			return;
+		}
 		string text = null;
 		for (int i = 0; i < OptionIndex.Count; i++)
 		{
-			if (OptionIndex[i] == option && i < Labels.Count)
+			if (OptionIndex[i] == option - 1 && i < Labels.Count)
 			{
 				text = Labels[i];
 			}
@@ -99,13 +104,19 @@ public static class RadialBridge
 		Reset();
 	}
 
+	/// <summary>Read the self wheel after the game's delayed button setup finishes.</summary>
+	public static void NotifyReady()
+	{
+		_ready = true;
+	}
+
 	private static bool StillOpen(UIRadialMenu menu)
 	{
-		if ((UnityEngine.Object)(object)menu == (UnityEngine.Object)null)
+		if ((UnityEngine.Object)(object)menu == (UnityEngine.Object)null || !menu.IsShowing)
 		{
 			return false;
 		}
-		List<Button> list = Cpp.Read(() => Cpp.ToManaged(menu.FAIFDGOFNIA));
+		List<Button> list = Cpp.Read(() => Cpp.ToManaged(menu.buttons));
 		int num = Cpp.Count<Button>(list);
 		for (int num2 = 0; num2 < num; num2++)
 		{
@@ -150,7 +161,7 @@ public static class RadialBridge
 		}
 		if (Labels.Count == 0)
 		{
-			if (flag && !(Time.unscaledTime - _openedAt > 5f))
+			if (flag && _ready)
 			{
 				Collect(val);
 			}
@@ -163,15 +174,15 @@ public static class RadialBridge
 
 	private static void Collect(UIRadialMenu menu)
 	{
-		List<Button> list = Cpp.Read(() => Cpp.ToManaged(menu.FAIFDGOFNIA));
+		List<Button> list = Cpp.Read(() => Cpp.ToManaged(menu.buttons));
 		int num = Cpp.Count<Button>(list);
 		if (num == 0)
 		{
 			return;
 		}
 		bool flag = Cpp.Read(() => menu.UseTextMeshProTexts, fallback: false);
-		List<TextMeshProUGUI> list2 = (flag ? Cpp.Read(() => Cpp.ToManaged(menu.BNKAKIJGAIL)) : null);
-		List<Text> list3 = (flag ? null : Cpp.Read(() => Cpp.ToManaged(menu.CHGFEAJIIMN)));
+		List<TextMeshProUGUI> list2 = (flag ? Cpp.Read(() => Cpp.ToManaged(menu.textMeshProTexts)) : null);
+		List<Text> list3 = (flag ? null : Cpp.Read(() => Cpp.ToManaged(menu.Texts)));
 		List<string> list4 = new List<string>();
 		List<int> list5 = new List<int>();
 		for (int num2 = 0; num2 < num; num2++)
@@ -206,8 +217,7 @@ public static class RadialBridge
 			s = TextUtil.Clean(s);
 			if (!string.IsNullOrWhiteSpace(s))
 			{
-				bool flag2 = Cpp.Read(() => ((Selectable)b).interactable, fallback: true);
-				list4.Add(flag2 ? s : (s + ", unavailable"));
+				list4.Add(s);
 				list5.Add(num2);
 			}
 		}
@@ -235,7 +245,7 @@ public static class RadialBridge
 		{
 			stringBuilder.Append(i + 1);
 			stringBuilder.Append(". ");
-			stringBuilder.Append(Labels[i]);
+			stringBuilder.Append(Describe(i));
 			stringBuilder.Append(". ");
 		}
 		Speaker.Say(TextUtil.Cap(stringBuilder.ToString(), 800), Pri.High);
@@ -249,7 +259,7 @@ public static class RadialBridge
 	{
 		if (_cursor >= 0 && _cursor < Labels.Count)
 		{
-			Speaker.Say($"{Labels[_cursor]}, {_cursor + 1} of {Labels.Count}.", force ? Pri.Critical : Pri.High);
+			Speaker.Say($"{Describe(_cursor)}, {_cursor + 1} of {Labels.Count}.", force ? Pri.Critical : Pri.High);
 		}
 	}
 
@@ -257,7 +267,7 @@ public static class RadialBridge
 	{
 		if (Keys.Hit(Prefs.KeyCancel))
 		{
-			Reset();
+			CloseIfOpen();
 			Speaker.SayNow("Closed.");
 			return;
 		}
@@ -312,7 +322,7 @@ public static class RadialBridge
 		}
 		int num = OptionIndex[_cursor];
 		string text = Labels[_cursor];
-		if (text.EndsWith(", unavailable", StringComparison.OrdinalIgnoreCase))
+		if (!IsAvailable(_cursor))
 		{
 			Speaker.SayNow("That option is unavailable.");
 			return;
@@ -320,12 +330,38 @@ public static class RadialBridge
 		Speaker.SayNow(text + ".");
 		try
 		{
-			_menu.OnChoose(num);
+			UIRadialMenu menu = _menu;
+			menu.OnChoose(num + 1);
+			if (menu.IsShowing)
+			{
+				Speaker.SayNow("That action is not ready. Try again.");
+				return;
+			}
 		}
 		catch (Exception ex)
 		{
 			Log.Warn("Radial OnChoose failed: " + ex.Message);
 		}
 		Reset();
+	}
+
+	private static bool IsAvailable(int index)
+	{
+		if (!Cpp.Alive(_menu) || !_menu.IsShowing || index < 0 || index >= OptionIndex.Count)
+		{
+			return false;
+		}
+		int source = OptionIndex[index];
+		if (!WheelChoice.IsValidNumber(source + 1, Cpp.CountOf(_menu._currentOptions), Cpp.CountOf(_menu.buttons)))
+		{
+			return false;
+		}
+		Button button = Cpp.AtOf(_menu.buttons, source);
+		return Cpp.Alive(button) && button.IsActive() && button.IsInteractable();
+	}
+
+	private static string Describe(int index)
+	{
+		return IsAvailable(index) ? Labels[index] : Labels[index] + ", unavailable";
 	}
 }

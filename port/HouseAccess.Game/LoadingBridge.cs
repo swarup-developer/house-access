@@ -40,7 +40,7 @@ public static class LoadingBridge
 		{
 			return;
 		}
-		Text label = Cpp.Read(() => loader.MJFGGLCHPDF);
+		Text label = Cpp.Read(() => loader._text);
 		if (Cpp.Alive((UnityEngine.Object)(object)label))
 		{
 			string s = Cpp.Read(() => label.text);
@@ -110,38 +110,8 @@ public static class LoadingBridge
 
 	private static void WatchContinuePrompt()
 	{
-		// This build exposes no _ClickToContinueObject on LoadingScreenManager; find an
-		// active child of the loading screen that is labelled as the continue prompt.
-		GameObject go = null;
-		try
-		{
-			Il2CppArrayBase<Transform> children = ((Component)_mgr).GetComponentsInChildren<Transform>(true);
-			if (children != null)
-			{
-				foreach (Transform t in children)
-				{
-					if (!Cpp.Alive((UnityEngine.Object)(object)t))
-					{
-						continue;
-					}
-					GameObject g = ((Component)t).gameObject;
-					if (!Cpp.Alive((UnityEngine.Object)(object)g) || !g.activeInHierarchy)
-					{
-						continue;
-					}
-					string n = ((UnityEngine.Object)g).name;
-					if (n != null && n.IndexOf("Continue", StringComparison.OrdinalIgnoreCase) >= 0)
-					{
-						go = g;
-						break;
-					}
-				}
-			}
-		}
-		catch
-		{
-		}
-		bool flag = Cpp.Alive((UnityEngine.Object)(object)go);
+		GameObject go = Cpp.Read(() => _mgr._ClickToContinueObject);
+		bool flag = Cpp.Alive(go) && Cpp.Read(() => go.activeInHierarchy, fallback: false);
 		if (flag != _lastContinueVisible)
 		{
 			_lastContinueVisible = flag;
@@ -158,7 +128,7 @@ public static class LoadingBridge
 		{
 			return;
 		}
-		AsyncOperation val = Cpp.Read(() => _mgr.MBIIDOACBAL);
+		AsyncOperation val = Cpp.Read(() => _mgr._gameLoader);
 		if (val == null)
 		{
 			return;

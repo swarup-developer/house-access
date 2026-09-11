@@ -10,8 +10,8 @@ using EekCharacterEngine.Canvas;
 using EekCharacterEngine.Interaction;
 using UnityEngine;
 
-// The inventory component class name on this game build (interop-assembly naming).
-using InventoryComp = HKJNFHAKLIE;
+// Inventory lives in the split EekCharacterEngine assembly on current builds.
+using InventoryComp = EekCharacterEngine.Components.CInventory;
 
 namespace HouseAccess.Game;
 
@@ -91,7 +91,7 @@ public static class InventoryBridge
 				{
 					return canvas.activeInHierarchy;
 				}
-				return Cpp.Read(() => cb.KHJBOFBICPF, fallback: false);
+				return Cpp.Read(() => cb.IsShowing, fallback: false);
 			}
 			return ((Component)u).gameObject.activeInHierarchy;
 		}
@@ -132,16 +132,16 @@ public static class InventoryBridge
 		{
 			try
 			{
-				Il2CppSystem.Collections.Generic.List<InventoryUI.LBEMAJLOJKH> display = Cpp.Read(() => ui.EHJCCCEFIHK);
-				int count = Cpp.CountOf<InventoryUI.LBEMAJLOJKH>(display);
+				Il2CppSystem.Collections.Generic.List<InventoryUI.InventoryDisplayItem> display = Cpp.Read(() => ui._onDisplay);
+				int count = Cpp.CountOf<InventoryUI.InventoryDisplayItem>(display);
 				for (int i = 0; i < count; i++)
 				{
-					InventoryUI.LBEMAJLOJKH slot = Cpp.AtOf<InventoryUI.LBEMAJLOJKH>(display, i);
+					InventoryUI.InventoryDisplayItem slot = Cpp.AtOf<InventoryUI.InventoryDisplayItem>(display, i);
 					if (slot == null)
 					{
 						continue;
 					}
-					InteractiveItem item = Cpp.Read(() => slot.IDMOLAKGIGK);
+					InteractiveItem item = Cpp.Read(() => slot.ScriptReference);
 					if (Cpp.Alive((UnityEngine.Object)(object)item))
 					{
 						string name = GameRefs.NameOf(item);
@@ -164,7 +164,7 @@ public static class InventoryBridge
 			InventoryComp bag = Bag;
 			if (bag != null)
 			{
-				Il2CppSystem.Collections.Generic.List<InventoryObject> inv = Cpp.Read(() => bag.HHIDMHMDDIG);
+				Il2CppSystem.Collections.Generic.List<InventoryObject> inv = Cpp.Read(() => bag.InventoryItems);
 				int n = Cpp.CountOf<InventoryObject>(inv);
 				for (int i = 0; i < n; i++)
 				{

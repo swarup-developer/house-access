@@ -25,6 +25,17 @@
 
 ## Overview
 
+Version **1.1.16** targets the current Steam game layout, with separate
+`EekCharacterEngine`, `EekUI`, `EekEvents`, and `HouseParty` assemblies. Build it
+against the generated interop assemblies from the installation where it will run.
+The older GOG 1.1.7 single-assembly build is not a compatible target for this version.
+See [Steam compatibility diagnosis](docs/STEAM-COMPATIBILITY.md) for the fixes and
+the limits of the offline verification.
+
+Auto-walk defaults to direct controller movement on this build. Existing
+configurations keep their saved mode; set `MoveMode = direct` if an older
+configuration makes auto-walk pause before it starts moving.
+
 Welcome to **House Access**, an accessibility mod built with care for [**House Party**](https://www.gog.com/en/game/house_party) by Eek! Games.
 
 House Party is a 3D narrative comedy adventure packed with branching choices, eccentric party guests, item combinations, and chaotic social puzzles. **House Access** hooks directly into the game engine to bridge the entire visual experience to your favorite screen reader.
@@ -204,7 +215,7 @@ Developers wishing to contribute or customize House Access can build the project
    ```shell
    dotnet build port\HouseAccess.csproj -c Release
    ```
-   The project finds the game's BepInEx install automatically: it scans the fixed drives for a folder containing `HouseParty.exe` with `BepInEx\core` and `BepInEx\interop` next to it, and compiles against that. If none is found it falls back to the copy stashed in the repo's `tmp\BepInEx788-aside`, so a plain clone still builds. To force a specific install, point `BepInExRoot` at its `BepInEx` folder:
+   The project scans fixed drives for a current House Party installation and references its generated `BepInEx\interop` assemblies, including the separate game assemblies. It rejects the old single-assembly layout and does not use the old `tmp\BepInEx788-aside` snapshot. A local game installation is required. To choose an installation explicitly, point `BepInExRoot` at its `BepInEx` folder:
    ```shell
    dotnet build port\HouseAccess.csproj -c Release -p:BepInExRoot="C:\path\to\BepInEx"
    ```

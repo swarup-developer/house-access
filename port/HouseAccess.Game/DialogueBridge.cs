@@ -187,12 +187,10 @@ public static class DialogueBridge
 
 	public static void Tick()
 	{
-		if (!GameRefs.DialogueActive && !_pending && !_listReady && !_repliesHeld)
+		if (!GameRefs.DialogueActive)
 		{
-			// This build hides the dialogue UI's open state; the engine's static
-			// reference is the only signal, and it is not trustworthy while replies
-			// are on screen. Once replies are pending, held or collected, keep
-			// treating the conversation as active so the list is still read out.
+			// A closed dialogue must release menu input even if replies were queued
+			// or held when it closed. The native canvas now exposes this state.
 			if (Active && Time.unscaledTime - _lastActiveAt > 1.5f)
 			{
 				NotifyEnded();
@@ -220,10 +218,8 @@ public static class DialogueBridge
 		{
 			return;
 		}
-		// The response button container is not named on this game build (its members were
-		// stripped to interop names); the response buttons list is the first List<Button>
-		// the dialogue UI keeps.
-		List<Button> list = Cpp.Read(() => Cpp.ToManaged(ui.FAIFDGOFNIA));
+		// Read the dialogue UI's own response buttons.
+		List<Button> list = Cpp.Read(() => Cpp.ToManaged(ui.buttons));
 		if (list == null || list.Count == 0)
 		{
 			// No buttons exist at all. Only an empty container after replies were queued

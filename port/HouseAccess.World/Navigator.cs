@@ -91,7 +91,7 @@ public static class Navigator
 
 	private static string CurrentMover()
 	{
-		return (_moverForThisWalk ?? _lastGoodMover ?? Prefs.MoveMode?.Value ?? "warp").Trim().ToLowerInvariant();
+		return (_moverForThisWalk ?? _lastGoodMover ?? Prefs.MoveMode?.Value ?? Prefs.DefaultMoveMode).Trim().ToLowerInvariant();
 	}
 
 	public static void FaceCurrentQuiet()
@@ -882,15 +882,6 @@ public static class Navigator
 			}
 		}
 		Steer(val2, dt);
-	}
-
-	private static bool UseWarp(PlayerCharacter p)
-	{
-		if ((UnityEngine.Object)(object)p == (UnityEngine.Object)null)
-		{
-			return false;
-		}
-		return (Prefs.MoveMode?.Value ?? "warp").Trim().ToLowerInvariant() != "frame";
 	}
 
 	private static bool IsWarping(PlayerCharacter p)

@@ -129,7 +129,7 @@ public static class CutsceneBridge
 				{
 					continue;
 				}
-				PlayableDirector director = Cpp.Read(() => scene.DODBABFKFJA);
+				PlayableDirector director = Cpp.Read(() => scene.TimeLine);
 				if (Cpp.Alive((UnityEngine.Object)(object)director) && Cpp.Read(() => director.state, PlayState.Paused) == PlayState.Playing)
 				{
 					return scene;
@@ -291,7 +291,7 @@ public static class CutsceneBridge
 		}
 		try
 		{
-			PlayableDirector director = Cpp.Read(() => scene.DODBABFKFJA);
+			PlayableDirector director = Cpp.Read(() => scene.TimeLine);
 			if (Cpp.Alive((UnityEngine.Object)(object)director))
 			{
 				return (float)Cpp.Read(() => director.duration, 0.0);

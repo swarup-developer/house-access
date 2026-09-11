@@ -86,7 +86,7 @@ public static class OpportunityBridge
 				{
 					return canvas.activeInHierarchy;
 				}
-				return Cpp.Read(() => cb.KHJBOFBICPF, fallback: false);
+				return Cpp.Read(() => cb.IsShowing, fallback: false);
 			}
 			return ((Component)w).gameObject.activeInHierarchy;
 		}
@@ -105,7 +105,7 @@ public static class OpportunityBridge
 		}
 		try
 		{
-			if (Cpp.Read(() => w.DGHOLHNLLLJ, fallback: false))
+			if (Cpp.Read(() => w._showingMemories, fallback: false))
 			{
 				return true;
 			}
@@ -195,7 +195,7 @@ public static class OpportunityBridge
 			return false;
 		}
 		bool memories = ShowingMemories();
-		Il2CppSystem.Collections.Generic.List<GameObject> list = (memories ? Cpp.Read(() => w.OEHJHFHEHBB) : Cpp.Read(() => w.KMOEKPKKJKP));
+		Il2CppSystem.Collections.Generic.List<GameObject> list = (memories ? Cpp.Read(() => w._memoriesOnDisplay) : Cpp.Read(() => w._opportunitiesOnDisplay));
 		int num = Cpp.CountOf<GameObject>(list);
 		List<string> list2 = new List<string>();
 		for (int i = 0; i < num; i++)

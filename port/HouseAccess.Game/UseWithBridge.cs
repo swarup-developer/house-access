@@ -61,8 +61,7 @@ public static class UseWithBridge
 
 	private static bool IsOpen()
 	{
-		// This game build has no CanvasBase.IsShowing; the canvas counts as open while
-		// its own GameObject is active.
+		// The manager remains active even when the inventory selection is hidden.
 		UseSelectUI u = Ui;
 		if (!Cpp.Alive((UnityEngine.Object)(object)u))
 		{
@@ -70,7 +69,7 @@ public static class UseWithBridge
 		}
 		try
 		{
-			return ((Component)u).gameObject.activeInHierarchy;
+			return u.IsShowing;
 		}
 		catch
 		{
@@ -85,7 +84,7 @@ public static class UseWithBridge
 		{
 			return null;
 		}
-		InteractiveItem val = Cpp.Read(() => u.LEIDMCFDHBH);
+		InteractiveItem val = Cpp.Read(() => u._interactingWith);
 		return Cpp.Alive((UnityEngine.Object)(object)val) ? GameRefs.NameOf(val) : null;
 	}
 
@@ -238,7 +237,7 @@ public static class UseWithBridge
 		try
 		{
 			UseSelectUI u = Ui;
-			InteractiveItem val = (Cpp.Alive((UnityEngine.Object)(object)u) ? Cpp.Read(() => u.LEIDMCFDHBH) : null);
+			InteractiveItem val = (Cpp.Alive((UnityEngine.Object)(object)u) ? Cpp.Read(() => u._interactingWith) : null);
 			flag = Cpp.Alive((UnityEngine.Object)(object)val) && Cpp.Alive((UnityEngine.Object)(object)((Component)val).GetComponentInParent<Character>());
 		}
 		catch
@@ -298,7 +297,7 @@ public static class UseWithBridge
 		bool wasOpen = false;
 		try
 		{
-			wasOpen = Cpp.Alive((UnityEngine.Object)(object)ui) && ((Component)ui).gameObject.activeInHierarchy;
+			wasOpen = Cpp.Alive((UnityEngine.Object)(object)ui) && ui.IsShowing;
 		}
 		catch
 		{

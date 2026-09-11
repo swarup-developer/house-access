@@ -7,14 +7,14 @@ namespace HouseAccess.Util;
 /// <summary>
 /// Resolves game (interop) types by name at runtime instead of via typeof(...).
 ///
-/// House Party ships as a single IL2CPP assembly, so on the GOG build every game
-/// type lives in Assembly-CSharp.dll - but a newer game build (the Steam build,
-/// Unity 2022.3.62f2) can rename or drop interop types the GOG v1.1.7 build has.
+/// Older GOG interop placed game types in Assembly-CSharp.dll. Current Steam
+/// builds split them between EekCharacterEngine, EekUI, EekEvents and HouseParty.
 /// A JITted typeof() for a type that no longer exists throws TypeLoadException,
 /// and when that happens while a method's argument list is evaluated - as in
 /// Patches.Apply - it kills everything the method would have done afterwards,
 /// including every per-frame driver host. Looking types up by name turns each
-/// miss into a per-patch skip with one log line instead of a dead mod.
+/// miss into a per-patch skip. Strongly typed bridge references still require
+/// rebuilding against the installed game's assemblies; this lookup cannot fix them.
 /// </summary>
 public static class GameType
 {

@@ -75,12 +75,12 @@ public static class PhoneBridge
 			}
 			try
 			{
-				GameObject home = Cpp.Read(() => mp.IIEKHDEHAKL);
+				GameObject home = Cpp.Read(() => mp._homeSreen);
 				if (Cpp.Alive((UnityEngine.Object)(object)home) && home.activeInHierarchy)
 				{
 					return true;
 				}
-				GameObject lockSc = Cpp.Read(() => mp.GFECLGMNFMO);
+				GameObject lockSc = Cpp.Read(() => mp._lockScreen);
 				if (Cpp.Alive((UnityEngine.Object)(object)lockSc) && lockSc.activeInHierarchy)
 				{
 					return true;
@@ -114,7 +114,7 @@ public static class PhoneBridge
 			}
 			try
 			{
-				GameObject photos = Cpp.Read(() => p.FKOFHLHGFOD);
+				GameObject photos = Cpp.Read(() => p._photos);
 				return Cpp.Alive((UnityEngine.Object)(object)photos) && photos.activeInHierarchy;
 			}
 			catch
@@ -178,7 +178,7 @@ public static class PhoneBridge
 		}
 		try
 		{
-			Il2CppStringArray val = Cpp.Read(() => p.BCPOJONKFNK);
+			Il2CppStringArray val = Cpp.Read(() => p._photoNames);
 			if (val != null)
 			{
 				for (int i = 0; i < ((Il2CppArrayBase<string>)(object)val).Length; i++)
@@ -212,7 +212,7 @@ public static class PhoneBridge
 			Speaker.SayNow("No photos on this phone.");
 			return;
 		}
-		int num = Cpp.Read(() => p.GJKJMMLFGFG, 0);
+		int num = Cpp.Read(() => p._currentPic, 0);
 		if (num < 0 || num >= list.Count)
 		{
 			num = 0;
@@ -247,14 +247,14 @@ public static class PhoneBridge
 			ReadCurrentPhoto();
 			return;
 		}
-		int num = Cpp.Read(() => p.GJKJMMLFGFG, 0) - 1;
+		int num = Cpp.Read(() => p._currentPic, 0) - 1;
 		if (num < 0)
 		{
 			num = list.Count - 1;
 		}
 		try
 		{
-			p.AABKNDCAJHH(num);
+			p.DisplayPicture(num);
 		}
 		catch (Exception ex2)
 		{
@@ -410,7 +410,7 @@ public static class PhoneBridge
 		}
 		try
 		{
-			Il2CppSystem.Collections.Generic.List<string> val = Cpp.Read(() => v.OIMBEMFLDCO);
+			Il2CppSystem.Collections.Generic.List<string> val = Cpp.Read(() => v._files);
 			int num = Cpp.CountOf<string>(val);
 			for (int i = 0; i < num; i++)
 			{
@@ -441,7 +441,7 @@ public static class PhoneBridge
 			Speaker.Say("No photographs taken yet.", Pri.High);
 			return;
 		}
-		int num = Cpp.Read(() => v.EIAONIBGHEM, 0);
+		int num = Cpp.Read(() => v._currentPhoto, 0);
 		if (num < 0 || num >= list.Count)
 		{
 			num = 0;
@@ -462,7 +462,7 @@ public static class PhoneBridge
 			Speaker.Say("No photographs taken yet.", Pri.High);
 			return;
 		}
-		int num = Cpp.Read(() => v.EIAONIBGHEM, 0) + dir;
+		int num = Cpp.Read(() => v._currentPhoto, 0) + dir;
 		if (num < 0)
 		{
 			num = list.Count - 1;
@@ -474,7 +474,7 @@ public static class PhoneBridge
 		bool flag = false;
 		try
 		{
-			flag = v.EGPGLHJCMEO(num);
+			flag = v.LoadPhoto(num);
 		}
 		catch (Exception ex)
 		{
