@@ -2,6 +2,32 @@
 
 This document tracks the current accessibility status, tested features, open tasks, and architecture of HouseAccess. It is structured according to the Accessibility Mod Template specification.
 
+## Current compatibility work (1.1.14–1.1.16)
+
+The current Steam log disproved the earlier claim that 1.1.13 fixed Steam support:
+the driver installed, but most bridges failed because their types were still bound
+to the old single `Assembly-CSharp` layout. Version 1.1.14 retargets the separate
+game assemblies and current member names, and corrects canvas visibility and speech
+hook arguments. See [the diagnosis](STEAM-COMPATIBILITY.md).
+
+The user subsequently confirmed main-menu speech in 1.1.14. The menu test's log
+shows all 33 patches applied, zero skipped, and no errors or warnings. The other
+feature checkboxes below remain inherited claims, not runtime results for this build.
+
+The later gameplay log has zero errors and two auto-walk warnings: warp and frame
+movement made no progress, triggering the direct-controller fallback. The user
+confirmed that this fallback moved them after a pause. Version 1.1.15 defaults to
+direct controller movement, and the installed configuration was updated to match.
+Intro cutscene and radial-menu callbacks were reached.
+
+The 1.1.15 test identified inaccessible Audio settings and wheel actions announced
+as unavailable despite the interaction report claiming readiness. Version 1.1.16
+adds keyboard focus and navigation within Audio settings, fixes one-based wheel
+dispatch and its guard, waits for native self-wheel setup, and reads current
+interaction availability from the game. The interaction report no longer treats
+every declared story action as available. These changes have offline regression
+coverage; in-game behavior for 1.1.16 remains unverified.
+
 ## Core Metadata
 * **Game:** House Party
 * **Game Engine:** Unity (IL2CPP) with modern UnityEngine.InputSystem package

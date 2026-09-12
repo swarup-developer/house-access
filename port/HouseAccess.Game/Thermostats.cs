@@ -30,7 +30,7 @@ public static class Thermostats
 		{
 			return null;
 		}
-		string text = TextUtil.Clean(Cpp.Read(() => unit.PMKHNGAALCE));
+		string text = TextUtil.Clean(Cpp.Read(() => unit.CurrentTemperature));
 		return string.IsNullOrWhiteSpace(text) ? null : text;
 	}
 
@@ -46,7 +46,7 @@ public static class Thermostats
 		{
 			return false;
 		}
-		Speaker.Say(Cpp.Read(() => unit.BHOLPDGBDLO, fallback: false) ? ("Thermostat set to " + text + ", and it has been tampered with.") : ("Thermostat set to " + text + "."), Pri.High);
+		Speaker.Say(Cpp.Read(() => unit._tampered, fallback: false) ? ("Thermostat set to " + text + ", and it has been tampered with.") : ("Thermostat set to " + text + "."), Pri.High);
 		return true;
 	}
 

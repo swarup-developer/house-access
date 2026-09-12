@@ -18,7 +18,11 @@ public static class WheelBridge
 
 	private static readonly List<string> Labels = new List<string>();
 
-	private static readonly List<bool> Enabled = new List<bool>();
+	private static readonly List<string> RawLabels = new List<string>();
+
+	private static Il2CppSystem.Collections.Generic.List<string> _availableOptions;
+
+	private static bool _choiceAccepted;
 
 	private static readonly List<int> SourceIndex = new List<int>();
 
@@ -38,7 +42,7 @@ public static class WheelBridge
 
 	public static bool Opening => Time.unscaledTime < _openingUntil;
 
-	public static bool Active => _index >= 0 && Cpp.Alive((UnityEngine.Object)(object)_menu) && Time.unscaledTime <= _expiresAt;
+	public static bool Active => _index >= 0 && Cpp.Alive(_menu) && _menu.IsShowing && Time.unscaledTime <= _expiresAt;
 
 	public static void NotifyOpening()
 	{
@@ -52,58 +56,22 @@ public static class WheelBridge
 		_confirmVerb = null;
 		Labels.Clear();
 		SourceIndex.Clear();
-		Enabled.Clear();
+		RawLabels.Clear();
+		_availableOptions = null;
+		_openingUntil = 0f;
 		_index = -1;
 		_title = null;
 	}
 
-	// Option labels captured from RadialMenu.SetInteractions' second argument.
-	// On game builds where the wheel's stripped tuple field (BHNCIKDJNOO on GOG
-	// v1.1.7) is renamed or gone, this argument is the only readable list of what
-	// the wheel offers - without it the wheel opens in silence.
-	private static readonly List<string> FallbackLabels = new List<string>();
-
-	/// <summary>True while the wheel's options came from the SetInteractions argument rather than the game's own collections.</summary>
-	public static bool FallbackMode => _fallbackMode && FallbackLabels.Count > 0;
-
-	private static bool _fallbackMode;
-
-	public static void NotifyLabelsFromSetInteractions(object labels)
+	public static void NotifyOpened(RadialMenu menu, string centerLabel, InteractiveItem item,
+		Il2CppSystem.Collections.Generic.List<string> availableOptions)
 	{
-		FallbackLabels.Clear();
-		_fallbackMode = false;
-		if (labels == null)
-		{
-			return;
-		}
-		try
-		{
-			Il2CppSystem.Collections.Generic.List<string> list = labels as Il2CppSystem.Collections.Generic.List<string>;
-			if (list == null)
-			{
-				return;
-			}
-			int count = Cpp.CountOf<string>(list);
-			for (int i = 0; i < count; i++)
-			{
-				string label = Cpp.AtOf<string>(list, i);
-				if (!string.IsNullOrWhiteSpace(label))
-				{
-					FallbackLabels.Add(TextUtil.Humanize(label));
-				}
-			}
-			_fallbackMode = FallbackLabels.Count > 0;
-		}
-		catch
-		{
-		}
-	}
-
-	public static void NotifyOpened(RadialMenu menu, string centerLabel, InteractiveItem item)
-	{
+		Reset();
 		_openingUntil = 0f;
 		_menu = menu;
 		_item = item;
+		_availableOptions = availableOptions;
+		Log.Debug($"Wheel '{centerLabel}': {Cpp.CountOf(menu._currentOptions)} sorted slots, {Cpp.CountOf(availableOptions)} available interactions.");
 		_confirmVerb = null;
 		_title = TextUtil.Clean(centerLabel);
 		_expiresAt = Time.unscaledTime + 30f;
@@ -113,39 +81,23 @@ public static class WheelBridge
 	public static void NotifyChosen()
 	{
 		Reset();
+		_choiceAccepted = true;
 	}
 
 	private static void Collect()
 	{
 		Labels.Clear();
-		Enabled.Clear();
+		RawLabels.Clear();
 		SourceIndex.Clear();
 		if (!Cpp.Alive((UnityEngine.Object)(object)_menu))
 		{
 			return;
 		}
-		// The wheel's current options live in a stripped-named member on this build; it
-		// is read as its (label, enabled) list. When that member is renamed or gone
-		// (newer game builds), fall back to the labels captured from SetInteractions.
-		Il2CppSystem.Collections.Generic.List<Il2CppSystem.ValueTuple<string, bool>> list = null;
-		try
-		{
-			list = Cpp.Read(() => _menu.BHNCIKDJNOO);
-		}
-		catch
-		{
-			list = null;
-		}
-		if (Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(list) == 0 && FallbackMode)
-		{
-			Labels.AddRange(FallbackLabels);
-			for (int num3 = 0; num3 < Labels.Count; num3++)
-			{
-				Enabled.Add(item: true);
-				SourceIndex.Add(num3);
-			}
-			return;
-		}
+		// Keep the game's sorted positions, including disabled placeholder slots.
+		// Availability comes from the game's live SetInteractions input list. Native
+		// SortOptions adds missing default actions as disabled placeholders; reading
+		// every declared ItemAction or a cached tuple flag gives a different answer.
+		Il2CppSystem.Collections.Generic.List<Il2CppSystem.ValueTuple<string, bool>> list = _menu._currentOptions;
 		int num = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(list);
 		for (int num2 = 0; num2 < num; num2++)
 		{
@@ -154,7 +106,7 @@ public static class WheelBridge
 			if (!string.IsNullOrWhiteSpace(item))
 			{
 				Labels.Add(TextUtil.Humanize(item));
-				Enabled.Add(val != null && Cpp.Read(() => val.Item2, fallback: false));
+				RawLabels.Add(item);
 				SourceIndex.Add(num2);
 			}
 		}
@@ -200,7 +152,13 @@ public static class WheelBridge
 		{
 			return null;
 		}
-		return (i < Enabled.Count && !Enabled[i]) ? (Labels[i] + ", unavailable") : Labels[i];
+		return IsAvailable(i) ? Labels[i] : (Labels[i] + ", unavailable");
+	}
+
+	private static bool IsAvailable(int index)
+	{
+		return index >= 0 && index < RawLabels.Count && _availableOptions != null
+			&& _availableOptions.Contains(RawLabels[index]);
 	}
 
 	/// <summary>
@@ -231,7 +189,7 @@ public static class WheelBridge
 		{
 			return;
 		}
-		if (i < Enabled.Count && !Enabled[i])
+		if (!IsAvailable(i))
 		{
 			Speaker.SayNow(Labels[i] + " is not available.");
 			return;
@@ -250,10 +208,8 @@ public static class WheelBridge
 			}
 		}
 		RadialMenu menu = _menu;
-		Reset();
-		Speaker.SayNow(text + ".");
-		int num = ((i < SourceIndex.Count) ? SourceIndex[i] : i);
-		if (!WheelStillOffers(menu, num))
+		int num = SourceIndex[i];
+		if (!WheelStillOffers(menu, num) || menu._currentOptions[num].Item1 != RawLabels[i])
 		{
 			// The wheel was repopulated since it was announced (the game rebuilds it
 			// at conversation and scene transitions); pass nothing on rather than an
@@ -264,7 +220,15 @@ public static class WheelBridge
 		}
 		try
 		{
-			menu.OnChoose(num);
+			_choiceAccepted = false;
+			Speaker.SayNow(text + ".");
+			// Both native OnChoose methods take a one-based button number. Keep the
+			// source index until after the call: Reset used to erase that mapping first.
+			menu.OnChoose(num + 1);
+			if (!_choiceAccepted)
+			{
+				Speaker.SayNow("That action is not ready. Try again.");
+			}
 		}
 		catch (Exception ex)
 		{
@@ -275,11 +239,8 @@ public static class WheelBridge
 
 	/// <summary>
 	/// True when <paramref name="index" /> names an option the wheel offers right
-	/// now. The check mirrors the OnChoose guard: the index must be inside every
-	/// readable option collection (sorted tuples, per-slot buttons and per-slot
-	/// objects), because a wheel being closed or rebuilt clears some of them before
-	/// others and the game's OnChoose would throw on the first one it indexes that
-	/// no longer contains the index.
+	/// now. Native TryChooseOptionIndex bounds the sorted options and buttons. The
+	/// decorative elements collection is not indexed by the choice handler.
 	/// </summary>
 	private static bool WheelStillOffers(RadialMenu menu, int index)
 	{
@@ -289,11 +250,9 @@ public static class WheelBridge
 			{
 				return false;
 			}
-			int tupleCount = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(Cpp.Read(() => menu.BHNCIKDJNOO));
-			int buttonCount = Cpp.CountOf<UnityEngine.UI.Button>(Cpp.Read(() => menu.FAIFDGOFNIA));
-			int slotCount = Cpp.CountOf<GameObject>(Cpp.Read(() => menu.CBHGENOCLOF));
-			int bound = Mathf.Min(tupleCount, Mathf.Min(buttonCount, slotCount));
-			return index >= 0 && bound > 0 && index < bound;
+			int tupleCount = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(Cpp.Read(() => menu._currentOptions));
+			int buttonCount = Cpp.CountOf<UnityEngine.UI.Button>(Cpp.Read(() => menu.buttons));
+			return menu.IsShowing && WheelChoice.IsValidNumber(index + 1, tupleCount, buttonCount);
 		}
 		catch
 		{
@@ -326,7 +285,7 @@ public static class WheelBridge
 		bool flag;
 		try
 		{
-			flag = ((Component)menu).gameObject.activeInHierarchy;
+			flag = menu.IsShowing;
 		}
 		catch
 		{

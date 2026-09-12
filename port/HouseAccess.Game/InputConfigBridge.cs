@@ -244,7 +244,7 @@ public static class InputConfigBridge
 			{
 				// This build keeps no separate overlay object; a rebind is in progress while
 				// the row's interactive-rebinding operation is still live.
-				flag = Cpp.Read(() => Rows[_index].PPPKGMPEOKH, null) != null || Cpp.Read(() => Rows[_index].MKCIDIAFCAO, null) != null;
+				flag = Cpp.Read(() => Rows[_index].ongoingRebind, null) != null || Cpp.Read(() => Rows[_index].m_RebindOperation, null) != null;
 			}
 			catch
 			{

@@ -1,11 +1,63 @@
 # House Access — changelog
 
-Newest first. Version 1.1.13 is the current release; 1.1.0 was the last one
-published before it.
+Newest first. Version 1.1.16 is the current development build.
 
-House Access is developed and played on the GOG build v1.1.7 of House Party,
+Earlier releases were developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.16 — audio keyboard navigation and wheel actions
+
+- Focus the native music slider when Audio settings open with a keyboard. Connect
+  the page's visible controls for vertical navigation, preserve native slider
+  adjustment, and restore the opening control and original navigation on close.
+  Numbered controls and screen reading stay within the open audio page.
+- Read wheel availability from the game's current interaction list, rather than
+  saving tuple flags at opening. Disabled default placeholders remain unavailable.
+  The interaction report now asks the game's story-criteria method for current
+  actions instead of reporting every declared action as available.
+- Pass one-based button numbers to both native wheels, preserve source positions
+  when empty labels are skipped, and fix the choice guard's first/last boundaries.
+  Keep the interaction wheel usable when the game declines a choice.
+- Read self-wheel options after native delayed setup and check button availability
+  live. Cancel now closes the game's self wheel as well as its spoken list.
+
+Built offline against Steam build 25130746. Twenty-seven isolated regression
+checks exercise the actual bridge source with UI fixtures; game metadata and
+native method inspection establish the API contracts. In-game speech and behavior
+have not yet been verified for this release. The game was not launched.
+
+## 1.1.15 — start auto-walk with direct controller movement
+
+The gameplay log showed warp and frame movement making no progress, and the user
+confirmed that walking started only after the direct-controller fallback. New
+configurations now default to `MoveMode = direct`, avoiding both roughly 1.6-second
+fallback waits. Existing saved modes remain supported; an older configuration
+must be set to `direct` to receive the same behavior.
+
+The controller movement implementation is unchanged. The user verified it as the
+fallback in 1.1.14; selecting it from the start is the 1.1.15 change.
+
+## 1.1.14 — fix Steam assembly bindings and menu access
+
+- Compile against the installed game's separate `EekCharacterEngine`, `EekUI`,
+  `EekEvents`, and `HouseParty` assemblies. The 1.1.13 DLL still bound these types
+  to `Assembly-CSharp`, causing `TypeLoadException` throughout the per-frame driver.
+- Replace obsolete interop member names in menus, dialogue, inventory, loading,
+  wheels, phone, camera, cutscenes, thermostat, and held-item access with the current
+  members confirmed in the installed game metadata.
+- Restore dialogue and tooltip hooks using their actual method names. Resolve
+  the EekUI widgets in the global namespace where the game defines them.
+- Use native canvas visibility for menu and dialogue state; hidden managers no
+  longer count as open panels. Check the loading screen's actual continue prompt.
+- Read thought and inspection text from the text argument, excluding internal IDs.
+- Limit repeated per-frame error reports while continuing to retry each bridge.
+
+Built and checked offline against Steam build 25130746, Unity 2022.3.62f2 and
+BepInEx 6.0.0-be.788. A subsequent user-run test confirmed main-menu speech;
+the new log has all 33 patches applied and no errors or warnings. Gameplay and
+other interaction behavior remain unverified. Older GOG single-assembly builds are not
+supported by this retarget. See [diagnosis](docs/STEAM-COMPATIBILITY.md).
 
 ## 1.1.13 — the Steam build can no longer silence the whole mod
 

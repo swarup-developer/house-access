@@ -561,17 +561,10 @@ public static class GameRefs
 	{
 		get
 		{
-			// This game build hides the dialogue UI's open state, but the dialogue engine
-			// keeps a static reference to the Dialogue currently being displayed.
-			try
-			{
-				Dialogue cur = EekCharacterEngine.Components.CDialogue.CurrentlyOnDisplay;
-				return cur != null && Cpp.Read(() => cur.Shown, fallback: false);
-			}
-			catch
-			{
-				return false;
-			}
+			// CurrentlyOnDisplay is now IDialogue, which has no Shown flag.
+			// Read the canvas state instead of a story dialogue's historical state.
+			DialogueUI ui = Dialogue;
+			return Cpp.Alive(ui) && Cpp.Read(() => ui.IsShowing, fallback: false);
 		}
 	}
 
@@ -1464,7 +1457,7 @@ public static class GameRefs
 		{
 			return null;
 		}
-		if (Cpp.Read(() => d.Locked, fallback: false))
+		if (Cpp.Read(() => d.IsLocked, fallback: false))
 		{
 			return "locked";
 		}
@@ -1570,7 +1563,7 @@ public static class GameRefs
 
 	public static bool IsLocked(Door d)
 	{
-		return (UnityEngine.Object)(object)d != (UnityEngine.Object)null && Cpp.Read(() => d.Locked, fallback: false);
+		return (UnityEngine.Object)(object)d != (UnityEngine.Object)null && Cpp.Read(() => d.IsLocked, fallback: false);
 	}
 
 	public static bool IsShut(Door d)
@@ -1598,7 +1591,7 @@ public static class GameRefs
 		{
 			return null;
 		}
-		if (Cpp.Read(() => d.Locked, fallback: false))
+		if (Cpp.Read(() => d.IsLocked, fallback: false))
 		{
 			string text = Cpp.Read(() => d.CustomLockedMessage);
 			if (!string.IsNullOrWhiteSpace(text))
@@ -1977,8 +1970,7 @@ public static class GameRefs
 	public static List<Verb> VerbsOf(InteractiveItem item)
 	{
 		List<Verb> list = new List<Verb>();
-		// On this game build the availability of each action is decided by the game's own
-		// criteria system; the radial sorting helpers it used to consult no longer exist.
+		// Only the game's currently available interactions are returned here.
 		foreach (string item2 in InteractionsOf(item))
 		{
 			list.Add(new Verb
@@ -1990,69 +1982,24 @@ public static class GameRefs
 		return list;
 	}
 
+	/// <summary>Ask the game for actions whose current story criteria pass.</summary>
 	public static List<string> InteractionsOf(InteractiveItem item)
 	{
-		List<string> list = new List<string>();
-		if ((UnityEngine.Object)(object)item == (UnityEngine.Object)null)
+		if (!Cpp.Alive(item))
 		{
-			return list;
+			return new List<string>();
 		}
-		// Data-driven interactions of this game build: each InteractiveItemBehavior on the
-		// item declares its ItemActions. Whether the criteria of an action are currently
-		// met is left to the game when the action is chosen.
 		try
 		{
-			Il2CppArrayBase<InteractiveItemBehavior> behaviors = ((Component)item).GetComponentsInChildren<InteractiveItemBehavior>(true);
-			if (behaviors != null)
-			{
-				for (int i = 0; i < behaviors.Length; i++)
-				{
-					InteractiveItemBehavior behavior = behaviors[i];
-					if (!Cpp.Alive((UnityEngine.Object)(object)behavior))
-					{
-						continue;
-					}
-					Il2CppSystem.Collections.Generic.List<ItemAction> actions = Cpp.Read(() => behavior.ItemActions);
-					int n = Cpp.CountOf<ItemAction>(actions);
-					for (int j = 0; j < n; j++)
-					{
-						ItemAction a = Cpp.AtOf<ItemAction>(actions, j);
-						string name = (a == null) ? null : Cpp.Read(() => a.ActionName);
-						if (!string.IsNullOrWhiteSpace(name) && !list.Contains(name))
-						{
-							list.Add(name);
-						}
-					}
-				}
-			}
+			// Native RadialMenu uses InteractiveItem.Interactions, populated by this
+			// virtual method. Declared ItemActions include actions whose criteria fail.
+			return Cpp.ToManagedStrings(item.CalculateCurrentInteractionsFromStory(GameManager.GetActiveStory()));
 		}
 		catch (Exception ex)
 		{
-			Log.Debug("Item actions unavailable: " + ex.Message);
+			Log.Warn("Could not read current interactions: " + ex.Message);
+			throw;
 		}
-		if (list.Count > 0)
-		{
-			return list;
-		}
-		// Fallback: the item's built-in radial defaults (first token of each row).
-		try
-		{
-			Il2CppSystem.Collections.Generic.List<Il2CppSystem.Collections.Generic.List<string>> defs = item.GetDefaultInteractions();
-			int n2 = Cpp.CountOf<Il2CppSystem.Collections.Generic.List<string>>(defs);
-			for (int k = 0; k < n2; k++)
-			{
-				Il2CppSystem.Collections.Generic.List<string> row = Cpp.AtOf<Il2CppSystem.Collections.Generic.List<string>>(defs, k);
-				string first = (Cpp.CountOf<string>(row) > 0) ? Cpp.AtOf<string>(row, 0) : null;
-				if (!string.IsNullOrWhiteSpace(first) && !list.Contains(first))
-				{
-					list.Add(first);
-				}
-			}
-		}
-		catch
-		{
-		}
-		return list;
 	}
 
 	private static List<string> ReadList(Func<List<string>> getter)

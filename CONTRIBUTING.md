@@ -58,18 +58,18 @@ it is refusing.
 You need your own legal copy of House Party. Nothing here ships game files, and
 nothing here can be built without them.
 
-- The project targets `net6.0`, C# 10, and builds against BepInEx 6 for IL2CPP,
-  x64. Build `6.0.0-be.785` is the one the mod is developed and played on.
-- `port/HouseAccess.csproj` carries 126 assembly references: four from
-  `$(BepInExRoot)\core` and 122 from `$(BepInExRoot)\interop`. Those interop
-  assemblies are generated on your machine, from your copy of the game, the first
-  time you run it under BepInEx. They are not in this repository and must not be
-  added to it.
+- The project targets `net6.0`, C# 10, and BepInEx 6 for IL2CPP, x64.
+  Version 1.1.14 was built offline against Steam build 25130746 with
+  BepInEx `6.0.0-be.788`; earlier releases used GOG 1.1.7 and be.785.
+- `port/HouseAccess.csproj` references four loader assemblies from `core` and
+  discovers interop DLLs after resolving the selected installation. Those include
+  the separate `EekCharacterEngine`, `EekUI`, `EekEvents`, and `HouseParty` assemblies.
+  Interop assemblies come from your own game and must never be added to the repo.
 - The project resolves `BepInExRoot` at build time. It scans the fixed drives
   for a folder containing `HouseParty.exe` with `BepInEx\core` and
-  `BepInEx\interop` next to it and compiles against that; if none is found it
-  falls back to the copy stashed in the repository's own `tmp\BepInEx788-aside`
-  folder. A specific install can still be forced:
+  `BepInEx\interop` next to it and compiles against that. It requires the current
+  split game assemblies and does not fall back to a cached older build.
+  A specific install can still be forced:
   `dotnet build port\HouseAccess.csproj -p:BepInExRoot="<House Party>\BepInEx"`.
 - Set `UnityLogListening = false` under `[Logging]` in
   `BepInEx\config\BepInEx.cfg` before you run the game. This is not a preference.

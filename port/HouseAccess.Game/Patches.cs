@@ -86,14 +86,10 @@ public static class Patches
 	/// never by typeof(...) in an argument list, and every patch body takes only
 	/// mod-safe parameter types (strings, ints, Il2CppObjectBase, UnityEngine types).
 	///
-	/// The reason is the Steam build: on Unity 2022.3.62f2 the interop assembly no
-	/// longer carries every type the GOG v1.1.7 build has (EekUI.DialogueUI was the
-	/// first one reported missing). A JITted typeof() for a missing type throws
-	/// TypeLoadException while the CALL is being evaluated - so when Apply passed
-	/// typeof(DialogueUI), the exception killed Apply itself before a single patch
-	/// (including every per-frame driver host) could be installed, and the whole mod
-	/// sat silent. With name lookup, a missing type now costs one log line and its
-	/// own feature, nothing else.
+	/// Name lookup isolates optional hook failures. It does not retarget the rest
+	/// of the mod: every strongly typed bridge must also be compiled against the
+	/// installed game's assembly layout. Steam keeps DialogueUI in EekUI.dll and
+	/// Character in EekCharacterEngine.dll, not the older Assembly-CSharp.dll.
 	/// </summary>
 	public static void Apply(HarmonyLib.Harmony harmony)
 	{
@@ -101,16 +97,12 @@ public static class Patches
 		// First, and outside anything that can throw below: without a per-frame host
 		// nothing else in the mod ever runs.
 		PatchDriverHosts();
-		// GOG v1.1.7 names its dialogue methods with interop placeholders; these four
-		// are the real methods that show a line, begin a conversation, fill the reply
-		// buttons and run when a reply button is clicked. On the Steam build the
-		// DialogueUI type itself is reported missing; each miss is skipped with one
-		// log line instead of taking the mod down. Add the Steam build's real method
-		// names to the candidate lists as they are discovered.
-		PatchNamed(DialogueUIType, "JDBGBGNEMJH", "OnDialogueText");
-		PatchNamed(DialogueUIType, "ECKCCJBNEAF", "OnDialogueStart");
-		PatchNamed(DialogueUIType, "ILHLCBDDIBH", "OnResponsesQueued");
-		PatchNamed(DialogueUIType, "OBDJDECDLHG", "OnResponseChosen");
+		// Verified in the current Steam EekUI interop assembly. The older GOG
+		// placeholder names do not exist in this layout.
+		PatchNamed(DialogueUIType, "OnNewDialogueText", "OnDialogueText");
+		PatchNamed(DialogueUIType, "HandleDialogueStart", "OnDialogueStart");
+		PatchNamed(DialogueUIType, "OnNewResponses", "OnResponsesQueued");
+		PatchNamed(DialogueUIType, "OnResponseSelect", "OnResponseChosen");
 		// NarratorManager.NarrateText does not exist in this build; narration lines are
 		// announced through the DialogueUI patches above.
 		PatchNamed(ThoughtBubbleManagerType, "Show", "OnThought");
@@ -135,7 +127,8 @@ public static class Patches
 			typeof(string),
 			typeof(Il2CppSystem.Collections.Generic.List<string>)
 		});
-		PatchNamed(RadialMenuType, "OnChoose", "OnWheelChosen", new Type[1] { typeof(int) });
+		PatchNamed(RadialMenuType, "TryChooseOptionIndex", "OnWheelChosen", new Type[1] { typeof(int) });
+		PatchNamed(UIRadialMenuType, "EnableButtons", "OnRadialReady");
 		// The game itself calls RadialMenu.OnChoose from native code while a wheel's
 		// options are being rebuilt at scene and conversation transitions, and an
 		// index that no longer exists makes the game throw ArgumentOutOfRangeException
@@ -145,12 +138,8 @@ public static class Patches
 		PatchNamed(InventoryUIType, "OnItemClick", "OnInventoryClick");
 		if (Prefs.PatchWidgetFocus.Value)
 		{
-			// ToolTipProvider.ToolTipChanged is not named in this build; its single
-			// ToolTipAssociate method is the tooltip-change sink.
-			PatchNamed(ToolTipProviderType, "OKBDGDAJKNC", "OnToolTipChanged");
-			// Inventory/use-select hover methods do not exist in this GOG v1.1.7 build;
-			// widget focus is announced through the EekUI OnSelect patches below and the
-			// bridges' own navigation announcements.
+			PatchNamed(ToolTipProviderType, "ToolTipChanged", "OnToolTipChanged");
+			// Focus is announced through the widgets' OnSelect callbacks.
 			PatchNamed(EekUIButtonType, "OnSelect", "OnButtonCheckSelect");
 			PatchNamed(EekUIToggleType, "OnSelect", "OnToggleCheckSelect");
 			PatchNamed(EekUISliderType, "OnSelect", "OnSliderCheckSelect");
@@ -167,11 +156,8 @@ public static class Patches
 		PatchNamed(MiniGameManagerType, "OnEndGame", "OnGameEnd");
 		if (Prefs.PatchPreferences.Value)
 		{
-			// SettingsManager methods are obfuscated in this build and cannot be
-			// patched reliably. The settings canvas is still announced by the
-			// MenuReader when it opens, and sliders/toggles are read by the
-			// widget-focus patches below.
-			Log.Info("SettingsManager patches skipped (methods not found in this build).");
+			PatchNamed(AudioSettingsType, "Toggle", "BeforeAudioToggle", null, prefix: true);
+			PatchNamed(AudioSettingsType, "Toggle", "OnAudioToggled");
 		}
 		else
 		{
@@ -211,13 +197,15 @@ public static class Patches
 
 	private static readonly string[] ToolTipProviderType = new string[3] { "EekCharacterEngine.Canvas.ToolTipProvider", "Il2CppEekCharacterEngine.Canvas.ToolTipProvider", "ToolTipProvider" };
 
-	private static readonly string[] EekUIButtonType = new string[3] { "EekUI.EekUIButton", "Il2CppEekUI.EekUIButton", "EekUIButton" };
+	private static readonly string[] EekUIButtonType = new string[3] { "EekUIButton", "EekUI.EekUIButton", "Il2CppEekUI.EekUIButton" };
 
-	private static readonly string[] EekUIToggleType = new string[3] { "EekUI.EekUIToggle", "Il2CppEekUI.EekUIToggle", "EekUIToggle" };
+	private static readonly string[] EekUIToggleType = new string[3] { "EekUIToggle", "EekUI.EekUIToggle", "Il2CppEekUI.EekUIToggle" };
 
-	private static readonly string[] EekUISliderType = new string[3] { "EekUI.EekUISlider", "Il2CppEekUI.EekUISlider", "EekUISlider" };
+	private static readonly string[] EekUISliderType = new string[3] { "EekUISlider", "EekUI.EekUISlider", "Il2CppEekUI.EekUISlider" };
 
-	private static readonly string[] EekUIDropdownType = new string[3] { "EekUI.EekUIDropdown", "Il2CppEekUI.EekUIDropdown", "EekUIDropdown" };
+	private static readonly string[] AudioSettingsType = new string[1] { "AudioSettings" };
+
+	private static readonly string[] EekUIDropdownType = new string[3] { "EekUIDropdown", "EekUI.EekUIDropdown", "Il2CppEekUI.EekUIDropdown" };
 
 	private static readonly string[] MiniGameManagerType = new string[3] { "EekCharacterEngine.Support.MiniGameManager", "Il2CppEekCharacterEngine.Support.MiniGameManager", "MiniGameManager" };
 
@@ -472,28 +460,44 @@ public static class Patches
 		});
 	}
 
-	private static void OnWheelOpened(Il2CppObjectBase __instance, string __0, object __1)
+	private static void OnWheelOpened(Il2CppObjectBase __instance, string __0, Il2CppObjectBase __1)
 	{
 		FirstCall("RadialMenu.SetInteractions");
 		Guard(delegate
 		{
-			// The wheel's own option labels arrive as the SetInteractions argument on
-			// builds where the stripped tuple field is renamed; hand them to the
-			// bridge BEFORE the instance cast so they survive even if the cast fails.
-			WheelBridge.NotifyLabelsFromSetInteractions(__1);
 			RadialMenu menu = Cast<RadialMenu>(__instance);
 			if (menu != null)
 			{
-				InteractiveItem item = Cpp.Read(() => menu.PGLCMOFAEMF);
-				WheelBridge.NotifyOpened(menu, __0, item);
+				InteractiveItem item = Cpp.Read(() => menu._lastInteractedItem);
+				WheelBridge.NotifyOpened(menu, __0, item,
+					Cast<Il2CppSystem.Collections.Generic.List<string>>(__1));
 			}
 		});
 	}
 
-	private static void OnWheelChosen()
+	private static void OnWheelChosen(bool __result)
 	{
-		FirstCall("RadialMenu.OnChoose");
-		Guard(WheelBridge.NotifyChosen);
+		FirstCall("RadialMenu.TryChooseOptionIndex");
+		if (__result)
+		{
+			Guard(WheelBridge.NotifyChosen);
+		}
+	}
+
+	private static void OnRadialReady()
+	{
+		Guard(RadialBridge.NotifyReady);
+	}
+
+	private static void BeforeAudioToggle(Il2CppObjectBase __instance)
+	{
+		Guard(() => SettingsBridge.BeforeAudioToggle(Cast<global::AudioSettings>(__instance)));
+	}
+
+	private static void OnAudioToggled(Il2CppObjectBase __instance)
+	{
+		FirstCall("AudioSettings.Toggle");
+		Guard(() => SettingsBridge.OnAudioToggled(Cast<global::AudioSettings>(__instance)));
 	}
 
 	private static float _lastWheelGuardWarn;
@@ -510,16 +514,9 @@ public static class Patches
 	/// ("[Error :Il2CppInterop] During invoking native->managed trampoline ...
 	/// EekUI.RadialMenu.OnChoose").
 	///
-	/// The index is checked against every option collection the wheel keeps that is
-	/// readable from here - the sorted option tuples WheelBridge announces, the
-	/// per-slot buttons, and the per-slot objects - and the call is skipped unless
-	/// it is inside the smallest of them. A wheel that is being closed or rebuilt
-	/// can keep one collection (the tuples) while clearing the others, so a bound
-	/// against any single list lets a stale index through; the smallest list is the
-	/// only one an index is guaranteed to be valid against. A wheel with nothing on
-	/// it has nothing to choose, so those calls are skipped too. When the guard
-	/// lets a call through it logs the index and the three counts once per change,
-	/// so if a crash still occurs the next LogOutput.log shows exactly what passed.
+	/// Native Steam OnChoose subtracts one before calling TryChooseOptionIndex,
+	/// which bounds only the option and button lists. Zero is invalid; the last
+	/// one-based button number is valid. Decorative elements are not a choice bound.
 	/// </summary>
 	private static void GuardWheelChoose(Il2CppObjectBase __instance, int __0, ref bool __runOriginal)
 	{
@@ -536,16 +533,11 @@ public static class Patches
 				// build; without a guard we must not block the game's own choice.
 				return;
 			}
-			int tupleCount = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(Cpp.Read(() => menu.BHNCIKDJNOO));
-			int buttonCount = Cpp.CountOf<UnityEngine.UI.Button>(Cpp.Read(() => menu.FAIFDGOFNIA));
-			int slotCount = Cpp.CountOf<GameObject>(Cpp.Read(() => menu.CBHGENOCLOF));
-			int bound = Mathf.Min(tupleCount, Mathf.Min(buttonCount, slotCount));
-			string sig = __0 + " of " + tupleCount + " options, " + buttonCount + " buttons, " + slotCount + " slots";
+			int tupleCount = Cpp.CountOf<Il2CppSystem.ValueTuple<string, bool>>(Cpp.Read(() => menu._currentOptions));
+			int buttonCount = Cpp.CountOf<UnityEngine.UI.Button>(Cpp.Read(() => menu.buttons));
+			string sig = __0 + " of " + tupleCount + " options, " + buttonCount + " buttons";
 			float unscaledTime = Time.unscaledTime;
-			bool tuplesAreSmallest = tupleCount <= buttonCount && tupleCount <= slotCount;
-			bool safe = bound > 0 && __0 < bound
-				&& (tupleCount == buttonCount || tupleCount == slotCount || tuplesAreSmallest);
-			if (__0 >= 0 && safe)
+			if (WheelChoice.IsValidNumber(__0, tupleCount, buttonCount))
 			{
 				if (sig != _lastWheelGuardSig && unscaledTime - _lastWheelGuardPass > 2f)
 				{
@@ -555,19 +547,11 @@ public static class Patches
 				}
 				return;
 			}
-			// The mod announced this wheel from the SetInteractions labels (fallback
-			// mode, the game's collections are not readable); the game's own collections
-			// being empty is expected there, so do not block the player's choice.
-			if (tupleCount == 0 && buttonCount == 0 && slotCount == 0 && WheelBridge.FallbackMode)
-			{
-				Log.Info("Wheel choose passed the guard (label fallback): " + sig + ".");
-				return;
-			}
 			__runOriginal = false;
 			if (unscaledTime - _lastWheelGuardWarn > 1f)
 			{
 				_lastWheelGuardWarn = unscaledTime;
-				Log.Warn("Wheel choose of index " + __0 + " ignored: the wheel offers " + sig + " right now.");
+				Log.Warn("Wheel choice number " + __0 + " ignored: the wheel offers " + sig + " right now.");
 				if (WheelBridge.Active)
 				{
 					Speaker.SayNow("That option is not available right now.");
@@ -615,48 +599,31 @@ public static class Patches
 		});
 	}
 
-	private static void OnThought(string __0)
+	private static void OnThought(string __1)
 	{
 		FirstCall("ThoughtBubbleManager.Show");
 		Guard(delegate
 		{
-			if (Prefs.SpeakDialogue.Value)
-			{
-				string text2 = TextUtil.Clean(__0);
-				if (!string.IsNullOrWhiteSpace(text2))
-				{
-					Speaker.Say("You think. " + TextUtil.Cap(text2, 600), Pri.High);
-				}
-			}
+			SayThought(__1, isThought: true);
 		});
 	}
 
-	private static void OnThoughtDisplay(string __0)
+	private static void OnThoughtDisplay(string __1)
 	{
 		FirstCall("ThoughtBubble.Display");
 		Guard(delegate
 		{
-			SayThought(__0, isThought: true);
+			SayThought(__1, isThought: true);
 		});
 	}
 
-	private static void OnDisplayMessage(string __0, string __1, bool __2)
+	private static void OnDisplayMessage(string __1, bool __2)
 	{
 		FirstCall("MessageHandler.OnDisplayMessage");
 		Guard(delegate
 		{
-			string text = TextUtil.Clean(__0);
-			string text2 = TextUtil.Clean(__1);
-			string combined;
-			if (!string.IsNullOrWhiteSpace(text) && !string.IsNullOrWhiteSpace(text2))
-			{
-				combined = text + ". " + text2;
-			}
-			else
-			{
-				combined = !string.IsNullOrWhiteSpace(text) ? text : text2;
-			}
-			SayThought(combined, __2);
+			// Argument zero is the internal event ID, not a heading for the message.
+			SayThought(__1, __2);
 		});
 	}
 
@@ -691,25 +658,25 @@ public static class Patches
 
 	private static void OnButtonCheckSelect(Il2CppObjectBase __instance)
 	{
-		FirstCall("EekUIButton.CheckSelect");
+		FirstCall("EekUIButton.OnSelect");
 		AnnounceWidgetInstance(__instance);
 	}
 
 	private static void OnToggleCheckSelect(Il2CppObjectBase __instance)
 	{
-		FirstCall("EekUIToggle.CheckSelect");
+		FirstCall("EekUIToggle.OnSelect");
 		AnnounceWidgetInstance(__instance);
 	}
 
 	private static void OnSliderCheckSelect(Il2CppObjectBase __instance)
 	{
-		FirstCall("EekUISlider.CheckSelect");
+		FirstCall("EekUISlider.OnSelect");
 		AnnounceWidgetInstance(__instance);
 	}
 
 	private static void OnDropdownCheckSelect(Il2CppObjectBase __instance)
 	{
-		FirstCall("EekUIDropdown.CheckSelect");
+		FirstCall("EekUIDropdown.OnSelect");
 		AnnounceWidgetInstance(__instance);
 	}
 
@@ -722,22 +689,9 @@ public static class Patches
 			{
 				return;
 			}
-			GameObject gameObject = Cpp.Read(() => component.gameObject);
-			bool flag = true;
-			// The interop property name of the widget's "currently selected" flag is
-			// build-specific; a renamed field must not stop the announcement.
-			try
-			{
-				PropertyInfo property = component.GetType().GetProperty("DFNIODNIFOF");
-				if (property != null)
-				{
-					flag = Cpp.Read(() => (bool)property.GetValue(component), fallback: true);
-				}
-			}
-			catch
-			{
-			}
-			AnnounceWidget(gameObject, flag);
+			// This is an OnSelect postfix: selection is the event itself, so there
+			// is no need to inspect an obfuscated highlight field on a base wrapper.
+			AnnounceWidget(Cpp.Read(() => component.gameObject), highlighted: true);
 		});
 	}
 
@@ -805,19 +759,6 @@ public static class Patches
 
 	private static void Guard(Action body)
 	{
-		try
-		{
-			body();
-		}
-		catch (Exception ex)
-		{
-			try
-			{
-				Log.Warn("Patch body threw: " + ex.Message);
-			}
-			catch
-			{
-			}
-		}
+		Log.Guard("Patch " + body.Method.Name, body);
 	}
 }

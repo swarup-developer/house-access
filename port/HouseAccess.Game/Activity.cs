@@ -7,8 +7,8 @@ using EekEvents.Support;
 using Il2CppInterop.Runtime.InteropTypes;
 using UnityEngine;
 
-// The inventory component class name on this game build (interop-assembly naming).
-using InventoryComp = HKJNFHAKLIE;
+// Inventory lives in the split EekCharacterEngine assembly on current builds.
+using InventoryComp = EekCharacterEngine.Components.CInventory;
 
 namespace HouseAccess.Game;
 
@@ -254,10 +254,8 @@ public static class Activity
 			{
 				return null;
 			}
-			// The inventory component's members are mangled on this game build; the single
-			// InventoryObject slot it keeps is the closest available stand-in for the item
-			// the player is showing or using.
-			InventoryObject shown = Cpp.Read(() => bag.KLFMNPALKDG);
+			// Use the inventory's current display slot, not a cached item name.
+			InventoryObject shown = Cpp.Read(() => bag.OnDisplay);
 			if (shown == null)
 			{
 				return null;

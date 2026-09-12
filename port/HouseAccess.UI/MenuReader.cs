@@ -322,19 +322,19 @@ public static class MenuReader
 		{
 			foreach (EekUIButton w in Cpp.FindAll<EekUIButton>(activeOnly: true))
 			{
-				Add(list, hashSet, Cpp.Read(() => ((Component)w).gameObject), Cpp.Read(() => w.JMLGMPJOJNN));
+				Add(list, hashSet, Cpp.Read(() => ((Component)w).gameObject), Cpp.Read(() => w._button));
 			}
 			foreach (EekUIToggle w2 in Cpp.FindAll<EekUIToggle>(activeOnly: true))
 			{
-				Add(list, hashSet, Cpp.Read(() => ((Component)w2).gameObject), Cpp.Read(() => w2.FHIDCFFFIJM));
+				Add(list, hashSet, Cpp.Read(() => ((Component)w2).gameObject), Cpp.Read(() => w2._toggle));
 			}
 			foreach (EekUISlider w3 in Cpp.FindAll<EekUISlider>(activeOnly: true))
 			{
-				Add(list, hashSet, Cpp.Read(() => ((Component)w3).gameObject), Cpp.Read(() => w3.OGDONAFLGNI));
+				Add(list, hashSet, Cpp.Read(() => ((Component)w3).gameObject), Cpp.Read(() => w3._slider));
 			}
 			foreach (EekUIDropdown w4 in Cpp.FindAll<EekUIDropdown>(activeOnly: true))
 			{
-				Add(list, hashSet, Cpp.Read(() => ((Component)w4).gameObject), Cpp.Read(() => w4.LIKJKKDDHLD));
+				Add(list, hashSet, Cpp.Read(() => ((Component)w4).gameObject), Cpp.Read(() => w4._dropdown));
 			}
 			foreach (Selectable s in Cpp.FindAll<Selectable>(activeOnly: true))
 			{
@@ -365,7 +365,7 @@ public static class MenuReader
 	/// </summary>
 	private static void Add(List<Numbered> into, HashSet<int> seen, GameObject go, Selectable control)
 	{
-		if (!Cpp.Alive((UnityEngine.Object)(object)go))
+		if (!Cpp.Alive((UnityEngine.Object)(object)go) || !go.activeInHierarchy || !SettingsBridge.AllowsMenuControl(go))
 		{
 			return;
 		}
@@ -432,8 +432,9 @@ public static class MenuReader
 				}
 				try
 				{
-					GameObject go = Cpp.Read(() => ((Component)c).gameObject);
-					if ((UnityEngine.Object)(object)go != (UnityEngine.Object)null && go.activeSelf)
+					// The manager stays active when its panel is closed.
+					GameObject go = Cpp.Read(() => c.Canvas);
+					if (Cpp.Read(() => c.IsShowing, fallback: false) && Cpp.Alive(go) && go.activeInHierarchy)
 					{
 						// Modal panels are always menus. Non-modal canvases are menus too
 						// if they look like settings/options panels or if the EventSystem is
@@ -456,7 +457,7 @@ public static class MenuReader
 								GameObject selected = Cpp.Read(() => es.currentSelectedGameObject);
 								if ((UnityEngine.Object)(object)selected != (UnityEngine.Object)null)
 								{
-								Transform root = ((Component)c).transform;
+								Transform root = go.transform;
 								Transform t = selected.transform;
 									while ((UnityEngine.Object)(object)t != (UnityEngine.Object)null)
 									{
@@ -736,8 +737,8 @@ public static class MenuReader
 	/// Second attempt for the game's own widgets. Verified against
 	/// BepInEx\interop\Assembly-CSharp.dll: EekUIButton, EekUIToggle, EekUISlider and
 	/// EekUIDropdown all extend MonoBehaviour rather than Selectable, and each one holds a
-	/// reference to the Unity control it drives - EekUISlider.OGDONAFLGNI is a
-	/// UnityEngine.UI.Slider, EekUIToggle.FHIDCFFFIJM a Toggle, EekUIDropdown.LIKJKKDDHLD a
+	/// reference to the Unity control it drives - EekUISlider._slider is a
+	/// UnityEngine.UI.Slider, EekUIToggle._toggle a Toggle, EekUIDropdown._dropdown a
 	/// Dropdown. Reading the value through those references costs nothing when the control
 	/// happens to sit on the same GameObject, and is the only thing that works when it does
 	/// not, so no assumption about the menu hierarchy is needed either way. The obfuscated
@@ -751,7 +752,7 @@ public static class MenuReader
 		EekUISlider eekSlider = go.GetComponent<EekUISlider>();
 		if (Cpp.Alive((UnityEngine.Object)(object)eekSlider))
 		{
-			Slider slider = Cpp.Read(() => eekSlider.OGDONAFLGNI);
+			Slider slider = Cpp.Read(() => eekSlider._slider);
 			if (Cpp.Alive((UnityEngine.Object)(object)slider))
 			{
 				role = "slider";
@@ -762,7 +763,7 @@ public static class MenuReader
 		EekUIToggle eekToggle = go.GetComponent<EekUIToggle>();
 		if (Cpp.Alive((UnityEngine.Object)(object)eekToggle))
 		{
-			Toggle toggle = Cpp.Read(() => eekToggle.FHIDCFFFIJM);
+			Toggle toggle = Cpp.Read(() => eekToggle._toggle);
 			if (Cpp.Alive((UnityEngine.Object)(object)toggle))
 			{
 				role = "checkbox";
@@ -773,7 +774,7 @@ public static class MenuReader
 		EekUIDropdown eekDropdown = go.GetComponent<EekUIDropdown>();
 		if (Cpp.Alive((UnityEngine.Object)(object)eekDropdown))
 		{
-			Dropdown dropdown = Cpp.Read(() => eekDropdown.LIKJKKDDHLD);
+			Dropdown dropdown = Cpp.Read(() => eekDropdown._dropdown);
 			if (Cpp.Alive((UnityEngine.Object)(object)dropdown))
 			{
 				role = "dropdown";
@@ -1118,6 +1119,16 @@ public static class MenuReader
 
 	public static void ReadAll()
 	{
+		if (SettingsBridge.Active)
+		{
+			List<string> labels = new List<string>();
+			foreach (Numbered control in NumberedControls())
+			{
+				labels.Add(LabelFor(control.Go, note: false));
+			}
+			Speaker.SayNow("Audio settings. " + string.Join(". ", labels));
+			return;
+		}
 		HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		List<KeyValuePair<float, string>> list = new List<KeyValuePair<float, string>>();
 		foreach (Text t in Cpp.FindAll<Text>(activeOnly: true))

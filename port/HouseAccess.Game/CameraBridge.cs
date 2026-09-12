@@ -32,7 +32,7 @@ public static class CameraBridge
 			{
 				// Photo count lives in a stripped member on this build; the camera's own
 				// counter property is the only remaining candidate.
-				return Cpp.Read(() => c._OOPHPDAKCJF_k__BackingField, 0);
+				return Cpp.Read(() => c.PhotoCount, 0);
 			}
 			catch
 			{

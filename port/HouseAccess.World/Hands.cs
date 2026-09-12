@@ -46,7 +46,8 @@ public static class Hands
 			}
 			try
 			{
-				return Cpp.Alive((UnityEngine.Object)(object)Cpp.Read(() => d.OJHEBMGKLCL));
+				SpringJoint joint = Cpp.Read(() => d.m_SpringJoint);
+				return Cpp.Alive(joint) && Cpp.Alive(Cpp.Read(() => joint.connectedBody));
 			}
 			catch
 			{
@@ -68,7 +69,7 @@ public static class Hands
 			{
 				return null;
 			}
-			return Cpp.Read(() => h._LEJKIEPKAKI_k__BackingField);
+			return Cpp.Read(() => h.CurrentlyHolding);
 		}
 	}
 

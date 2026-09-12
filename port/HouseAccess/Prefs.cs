@@ -9,6 +9,9 @@ namespace HouseAccess;
 
 public static class Prefs
 {
+	/// <summary>Use the controller path confirmed to move the player on current Steam builds.</summary>
+	public const string DefaultMoveMode = "direct";
+
 	public struct Chord
 	{
 		public KeyCode Key;
@@ -252,7 +255,7 @@ public static class Prefs
 		TurnSpeedDegPerSec = E("TurnSpeed", 540f, "Degrees per second when turning to face a target.");
 		AnnounceProgress = E("AnnounceProgress", def: true, "Call out remaining distance while auto-walking.");
 		AnnounceRoomChanges = E("AnnounceRoomChanges", def: true, "Say the room name when you walk into a new one.");
-		MoveMode = E("MoveMode", "warp", "How auto-walk moves you: warp, frame or direct. It changes this itself if a mode turns out not to move you, so it is rarely worth setting by hand.");
+		MoveMode = E("MoveMode", DefaultMoveMode, "How auto-walk moves you: direct, frame or warp. Direct uses the player controller immediately. Frame and warp remain available and fall back if they make no progress.");
 		CombatAssist = E("CombatAssist", "off", "How much of a fight to play for you. off is you. assist swings and blocks at the right moments. auto also closes the distance. None of them guarantee a win.");
 		CombatAutoFace = E("CombatAutoFace", def: true, "Keep facing your opponent during a fight. A brawl is unwinnable if your swings miss because you drifted.");
 		CombatCueAttack = E("CombatCueAttack", def: true, "A short tone the moment a punch would actually land.");
