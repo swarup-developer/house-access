@@ -1,10 +1,40 @@
 # House Access — changelog
 
-Newest first. Version 1.1.16 is the current development build.
+Newest first. Version 1.1.17 is the current development build.
 
 Earlier releases were developed and played on the GOG build v1.1.7 of House Party,
 Windows 64-bit, Unity 2020.3.47f1, with BepInEx 6.0.0-be.785 and
 `UnityLogListening = false`.
+
+## 1.1.17 — tutorial priority and route following
+
+- Read tutorials through native `PopupManager.DisplayText`, including translated
+  display overloads. Detect the instruction canvas and read visible text without
+  truncating long instructions.
+- Give popups priority over dialogue, wheels and world shortcuts. Scope F2 and
+  numbered controls to the popup, retain the underlying wheel, restore focus on
+  dismissal, and reserve the closing frame against accidental activation beneath
+  it. Auto-walk pauses until the popup closes.
+- Keep a visible wheel usable after a long tutorial; remove its 30-second expiry.
+  A tutorial opened by a choice no longer produces a misleading readiness warning.
+- Wait for native `responsesDisplayed` instead of treating a four-second delay
+  as a failed dialogue batch. Prevent Unity and the mod from both moving a reply
+  cursor on the same bound arrow press; recheck reply availability before choosing.
+- Follow NavMesh corners at their original height with tolerances derived from
+  the player controller. Clamp steps to the next corner, retain a sampled start
+  that has not been reached, and avoid selecting another floor with large samples.
+- Add direct auto-walk to the player's native movement buffer before its controller
+  step. Preserve native gravity and speed restrictions, movement locks and manual
+  control; remove the second controller move and downward push.
+- Re-read moving targets, preserve the floor beneath item targets, and stop at
+  failed or partial routes instead of continuing straight through obstacles.
+  Measure progress along the route so sideways oscillation does not count as
+  progress. Log route starts, recovery attempts and controller parameters.
+
+The supplied 1.1.16 gameplay log records working dialogue and wheel callbacks but
+no navigation trace. Version 1.1.17 has offline fixture coverage and still needs
+gameplay testing, especially the initial route to Brittney and stairs in both
+directions. See [the gameplay test notes](docs/GAMEPLAY-TESTING.md).
 
 ## 1.1.16 — audio keyboard navigation and wheel actions
 

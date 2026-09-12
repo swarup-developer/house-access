@@ -42,7 +42,7 @@ public static class WheelBridge
 
 	public static bool Opening => Time.unscaledTime < _openingUntil;
 
-	public static bool Active => _index >= 0 && Cpp.Alive(_menu) && _menu.IsShowing && Time.unscaledTime <= _expiresAt;
+	public static bool Active => _index >= 0 && Cpp.Alive(_menu) && _menu.IsShowing;
 
 	public static void NotifyOpening()
 	{
@@ -225,7 +225,7 @@ public static class WheelBridge
 			// Both native OnChoose methods take a one-based button number. Keep the
 			// source index until after the call: Reset used to erase that mapping first.
 			menu.OnChoose(num + 1);
-			if (!_choiceAccepted)
+			if (!_choiceAccepted && !PopupBridge.BlocksGameplay)
 			{
 				Speaker.SayNow("That action is not ready. Try again.");
 			}
@@ -325,7 +325,7 @@ public static class WheelBridge
 
 	public static void Tick()
 	{
-		if (Finder.Active)
+		if (PopupBridge.BlocksGameplay || DialogueBridge.Active || Finder.Active)
 		{
 			return;
 		}

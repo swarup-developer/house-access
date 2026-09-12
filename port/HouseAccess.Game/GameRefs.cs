@@ -446,9 +446,8 @@ public static class GameRefs
 			{
 				try
 				{
-					Vector3 position = ((Component)controller).transform.position;
-					Vector3 center = controller.center;
-					return new Vector3(position.x + center.x, position.y + center.y - controller.height * 0.5f, position.z + center.z);
+					Bounds bounds = controller.bounds;
+					return new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
 				}
 				catch
 				{
@@ -514,9 +513,10 @@ public static class GameRefs
 	{
 		get
 		{
-			// This game build does not expose a player input-lock flag; movement simply is
-			// not locked by the mod (menus are detected through the individual bridges).
-			return false;
+			PlayerCharacter player = Player;
+			return !Cpp.Alive(player) || Time.timeScale <= 0f || player.IgnoringMovementInput
+				|| (player.FPInput != null && player.FPInput.LockPosition)
+				|| CutSceneManager.IsActorInCutScene(player);
 		}
 	}
 

@@ -255,7 +255,7 @@ public static class Prefs
 		TurnSpeedDegPerSec = E("TurnSpeed", 540f, "Degrees per second when turning to face a target.");
 		AnnounceProgress = E("AnnounceProgress", def: true, "Call out remaining distance while auto-walking.");
 		AnnounceRoomChanges = E("AnnounceRoomChanges", def: true, "Say the room name when you walk into a new one.");
-		MoveMode = E("MoveMode", DefaultMoveMode, "How auto-walk moves you: direct, frame or warp. Direct uses the player controller immediately. Frame and warp remain available and fall back if they make no progress.");
+		MoveMode = E("MoveMode", DefaultMoveMode, "How auto-walk moves you: direct, frame or warp. Direct adds a step to the game's native controller movement, respecting its speed and gravity. Frame and warp remain available and fall back if they make no progress.");
 		CombatAssist = E("CombatAssist", "off", "How much of a fight to play for you. off is you. assist swings and blocks at the right moments. auto also closes the distance. None of them guarantee a win.");
 		CombatAutoFace = E("CombatAutoFace", def: true, "Keep facing your opponent during a fight. A brawl is unwinnable if your swings miss because you drifted.");
 		CombatCueAttack = E("CombatCueAttack", def: true, "A short tone the moment a punch would actually land.");

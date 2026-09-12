@@ -97,6 +97,8 @@ public static class Patches
 		// First, and outside anything that can throw below: without a per-frame host
 		// nothing else in the mod ever runs.
 		PatchDriverHosts();
+		PatchNamed(PlayerCharacterType, "TryMoveController", "BeforeControllerMove", null, prefix: true);
+		PatchNamed(SelectableType, "OnMove", "GuardDialogueMove", null, prefix: true);
 		// Verified in the current Steam EekUI interop assembly. The older GOG
 		// placeholder names do not exist in this layout.
 		PatchNamed(DialogueUIType, "OnNewDialogueText", "OnDialogueText");
@@ -115,13 +117,16 @@ public static class Patches
 			typeof(string),
 			typeof(bool)
 		});
-		PatchNamed(PopupManagerType, "Display", "OnPopup", new Type[2]
+		PatchNamed(PopupManagerType, "DisplayText", "BeforePopup", new Type[2] { typeof(string), typeof(string) }, prefix: true);
+		PatchNamed(PopupManagerType, "DisplayText", "OnPopup", new Type[2]
 		{
 			typeof(string),
 			typeof(string)
 		});
 		PatchNamed(UIRadialMenuType, "SetInteractions", "OnRadialOpened");
 		PatchNamed(UIRadialMenuType, "OnChoose", "OnRadialChosen");
+		PatchNamed(UIRadialMenuType, "OnChoose", "GuardPopupChoice", null, prefix: true);
+		PatchNamed(DialogueUIType, "OnResponseSelect", "GuardPopupChoice", null, prefix: true);
 		PatchNamed(RadialMenuType, "SetInteractions", "OnWheelOpened", new Type[2]
 		{
 			typeof(string),
@@ -188,6 +193,8 @@ public static class Patches
 	private static readonly string[] MessageHandlerType = new string[3] { "HouseParty.Interface.MessageHandler", "Il2CppHouseParty.Interface.MessageHandler", "MessageHandler" };
 
 	private static readonly string[] PopupManagerType = new string[3] { "EekCharacterEngine.PopupManager", "Il2CppEekCharacterEngine.PopupManager", "PopupManager" };
+
+	private static readonly string[] SelectableType = new string[1] { "UnityEngine.UI.Selectable" };
 
 	private static readonly string[] UIRadialMenuType = new string[3] { "EekUI.UIRadialMenu", "Il2CppEekUI.UIRadialMenu", "UIRadialMenu" };
 
@@ -419,7 +426,7 @@ public static class Patches
 		Guard(delegate
 		{
 			string text = (_lastSpeaker = GameRefs.NameOf(Cast<CharacterBase>(__0)));
-			if (!string.IsNullOrEmpty(text))
+			if (!string.IsNullOrEmpty(text) && !PopupBridge.Active)
 			{
 				Speaker.Say(text + " says:", Pri.High);
 			}
@@ -447,9 +454,20 @@ public static class Patches
 		Guard(DialogueBridge.NotifyResponsesPending);
 	}
 
-	private static void OnResponseChosen()
+	private static void OnResponseChosen(bool __runOriginal)
 	{
-		Guard(DialogueBridge.NotifyResponseChosen);
+		if (__runOriginal) Guard(DialogueBridge.NotifyResponseChosen);
+	}
+
+	private static void BeforeControllerMove(Il2CppObjectBase __instance)
+	{
+		Guard(() => HouseAccess.World.Navigator.BeforeControllerMove(Cast<PlayerCharacter>(__instance)));
+	}
+
+	private static bool GuardDialogueMove(Il2CppObjectBase __instance)
+	{
+		Component control = Cast<Component>(__instance);
+		return control == null || !DialogueBridge.HandlesMove(control.gameObject);
 	}
 
 	private static void OnRadialOpened(Il2CppObjectBase __instance, string __0)
@@ -520,6 +538,11 @@ public static class Patches
 	/// </summary>
 	private static void GuardWheelChoose(Il2CppObjectBase __instance, int __0, ref bool __runOriginal)
 	{
+		if (PopupBridge.BlocksGameplay)
+		{
+			__runOriginal = false;
+			return;
+		}
 		// Inline try/catch rather than Guard(...): the decision to block lives in the
 		// ref parameter, which a closure cannot capture. If anything here throws, the
 		// default __runOriginal stays true, so a guard bug can never freeze the wheel
@@ -570,8 +593,9 @@ public static class Patches
 		}
 	}
 
-	private static void OnRadialChosen(int __0)
+	private static void OnRadialChosen(int __0, bool __runOriginal)
 	{
+		if (!__runOriginal) return;
 		Guard(delegate
 		{
 			RadialBridge.NotifyChosen(__0);
@@ -627,21 +651,20 @@ public static class Patches
 		});
 	}
 
-	private static void OnPopup(string __0, string __1)
+	private static void BeforePopup(Il2CppObjectBase __instance)
 	{
-		FirstCall("PopupManager.Display");
-		Guard(delegate
-		{
-			if (Prefs.SpeakDialogue.Value)
-			{
-				string text = TextUtil.Clean(__0);
-				string text2 = TextUtil.Clean(__1);
-				if (!string.IsNullOrWhiteSpace(text) || !string.IsNullOrWhiteSpace(text2))
-				{
-					Speaker.Say(TextUtil.Cap(string.IsNullOrWhiteSpace(text) ? text2 : (text + ". " + text2), 600), Pri.High);
-				}
-			}
-		});
+		Guard(() => PopupBridge.BeforeDisplay(Cast<PopupManager>(__instance)));
+	}
+
+	private static void OnPopup(Il2CppObjectBase __instance)
+	{
+		FirstCall("PopupManager.DisplayText");
+		Guard(() => PopupBridge.AfterDisplay(Cast<PopupManager>(__instance)));
+	}
+
+	private static bool GuardPopupChoice()
+	{
+		return !PopupBridge.BlocksGameplay;
 	}
 
 	private static void SayThought(string text, bool isThought)

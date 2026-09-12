@@ -25,7 +25,7 @@
 
 ## Overview
 
-Version **1.1.16** targets the current Steam game layout, with separate
+Version **1.1.17** targets the current Steam game layout, with separate
 `EekCharacterEngine`, `EekUI`, `EekEvents`, and `HouseParty` assemblies. Build it
 against the generated interop assemblies from the installation where it will run.
 The older GOG 1.1.7 single-assembly build is not a compatible target for this version.

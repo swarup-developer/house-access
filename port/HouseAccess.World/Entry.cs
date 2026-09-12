@@ -194,66 +194,14 @@ public sealed class Entry
 
 	private static Vector3 StandableNear(Vector3 point)
 	{
-		//IL_0001: Unknown result type (might be due to invalid IL or missing references)
-		//IL_000c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0138: Unknown result type (might be due to invalid IL or missing references)
-		//IL_013f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0145: Unknown result type (might be due to invalid IL or missing references)
-		//IL_014a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_014d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_002c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_002d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0035: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0036: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0040: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0045: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0073: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0078: Unknown result type (might be due to invalid IL or missing references)
-		//IL_008b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0090: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00aa: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0116: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0118: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0122: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0127: Unknown result type (might be due to invalid IL or missing references)
-		//IL_012c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00eb: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f0: Unknown result type (might be due to invalid IL or missing references)
-		float y = GameRefs.FeetPos.y;
-		float num = point.y - y;
-		if (num < 2.4f && num > -1.5f)
-		{
-			return point;
-		}
-		try
-		{
-			Il2CppStructArray<RaycastHit> val = Physics.RaycastAll(point + Vector3.up * 0.2f, Vector3.down, 12f, -1, (QueryTriggerInteraction)1);
-			if (val != null)
-			{
-				float num2 = float.MaxValue;
-				Vector3 val2 = Vector3.zero;
-				bool flag = false;
-				foreach (RaycastHit item in (Il2CppArrayBase<RaycastHit>)(object)val)
-				{
-					RaycastHit current = item;
-					if (!((UnityEngine.Object)(object)current.collider == (UnityEngine.Object)null) && !(Mathf.Abs(current.point.y - y) > 2.2f) && !(current.distance >= num2))
-					{
-						num2 = current.distance;
-						val2 = current.point;
-						flag = true;
-					}
-				}
-				if (flag)
-				{
-					return val2 + Vector3.up * 0.05f;
-				}
-			}
-		}
-		catch
-		{
-		}
-		return new Vector3(point.x, y, point.z);
+		// Project beneath the target, never beneath the player. The old fallback
+		// replaced an upstairs item's Y with the downstairs player's Y.
+		CharacterController controller = GameRefs.Controller;
+		float height = Cpp.Alive(controller) ? controller.height : 2f;
+		if (Physics.Raycast(point + Vector3.up * 0.05f, Vector3.down, out RaycastHit hit,
+			height, -1, QueryTriggerInteraction.Ignore) && !GameRefs.IsPlayerPart(hit.transform))
+			return hit.point;
+		return point;
 	}
 
 	public string Describe()

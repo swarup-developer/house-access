@@ -35,8 +35,6 @@ public static class Navigator
 
 	private static float _lastAnnounced = float.MaxValue;
 
-	private static bool _warnedNoPath;
-
 	private static bool _partialRoute;
 
 	private static bool _warnedPartial;
@@ -45,27 +43,13 @@ public static class Navigator
 
 	private static Vector3 _fixedGoal;
 
-	private static float _settleUntil;
-
-	private static float _walkStarted;
-
-	private static Entry _viaStairs;
-
-	private static int _stairAttempts;
-
 	private static float _nextDoorTry;
 
 	private static string _moverForThisWalk;
 
-	private static Vector3 _watchPos;
-
 	private static float _watchSince;
 
 	private static int _nudges;
-
-	private static float _sidestepSign;
-
-	private static float _sidestepUntil;
 
 	private static Vector3 _legStart;
 
@@ -77,11 +61,56 @@ public static class Navigator
 	// worked stops every walk from re-proving the two dead tiers first.
 	private static string _lastGoodMover;
 
+	private static Vector3 _controllerStep;
+	private static int _controllerStepFrame = -1;
+	private static float _pausedAt = -1f;
+	private static float _bestRemaining;
+	private static bool _controllerStepLogged;
+
+	// Match the real controller's skin and step height rather than skipping a
+	// turn 0.6 metres early or treating vertically stacked corners as one point.
+	private static float CornerRadius => Cpp.Alive(GameRefs.Controller) ? Mathf.Max(0.02f, GameRefs.Controller.skinWidth) : 0.05f;
+	private static float CornerHeight => Cpp.Alive(GameRefs.Controller) ? GameRefs.Controller.stepOffset + GameRefs.Controller.skinWidth : 0.1f;
+
+	/// <summary>Suspend a route while a popup owns input; keep its destination.</summary>
+	public static void PauseForPopup()
+	{
+		_controllerStepFrame = -1;
+		if (IsWalking && _pausedAt < 0f)
+		{
+			_pausedAt = Time.unscaledTime;
+			CancelWarps();
+			Log.Info("Auto-walk paused for popup.");
+		}
+	}
+
+	/// <summary>Add one planned step before the game's own controller move and gravity.</summary>
+	public static void BeforeControllerMove(PlayerCharacter player)
+	{
+		if (_controllerStepFrame != Time.frameCount) return;
+		_controllerStepFrame = -1;
+		if (!IsWalking || PopupBridge.BlocksGameplay || GameRefs.MovementLocked || Keys.MovementKeyHeld) return;
+		if (!Cpp.Alive(player) || player != GameRefs.Player || !Cpp.Alive(GameRefs.Controller) || !GameRefs.Controller.enabled) return;
+		// Native TryMoveController consumes _movement, adds its falling motion,
+		// calls CharacterController.Move, then clears _movement. GetSpeed already
+		// includes deltaTime and the current crouch/run/drunk modifiers.
+		float allowed = Mathf.Max(0f, player.GetSpeed);
+		player._movement += Vector3.ClampMagnitude(_controllerStep, allowed);
+		if (!_controllerStepLogged)
+		{
+			_controllerStepLogged = true;
+			CharacterController controller = GameRefs.Controller;
+			Log.Info($"Auto-walk uses native controller movement; radius={controller.radius:0.00}, step={controller.stepOffset:0.00}, slope={controller.slopeLimit:0.0}.");
+		}
+	}
+
 	public static bool IsWalking => _walkTarget != null && _walkTarget.Alive;
 
 	public static void Reset()
 	{
 		_turning = false;
+		_controllerStepFrame = -1;
+		_pausedAt = -1f;
 		CancelWarps();
 		_walkTarget = null;
 		Path.Clear();
@@ -185,7 +214,7 @@ public static class Navigator
 		//IL_0068: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0081: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0086: Unknown result type (might be due to invalid IL or missing references)
-		if (!_turning)
+		if (!_turning || IsWalking || PopupBridge.BlocksGameplay || GameRefs.MovementLocked)
 		{
 			return;
 		}
@@ -230,7 +259,6 @@ public static class Navigator
 		}
 		else if (CanStart())
 		{
-			_stairAttempts = 0;
 			_moverForThisWalk = null;
 			if (current.Kind == EntryKind.Person && Prefs.HoldWhileWalking.Value)
 			{
@@ -248,7 +276,6 @@ public static class Navigator
 		//IL_0054: Unknown result type (might be due to invalid IL or missing references)
 		if (CanStart())
 		{
-			_stairAttempts = 0;
 			_moverForThisWalk = null;
 			Entry entry = new Entry
 			{
@@ -289,32 +316,36 @@ public static class Navigator
 		//IL_00c8: Unknown result type (might be due to invalid IL or missing references)
 		//IL_00e4: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0066: Unknown result type (might be due to invalid IL or missing references)
+		_turning = false;
 		_walkTarget = e;
+		_controllerStepLogged = false;
+		_controllerStepFrame = -1;
+		_pausedAt = -1f;
+		_partialRoute = false;
+		Path.Clear();
 		_corner = 0;
 		_repathAt = 0f;
 		_legDeadline = 0f;
-		_warnedNoPath = false;
 		_warnedPartial = false;
 		_lastAnnounced = float.MaxValue;
 		_nextProgress = Time.unscaledTime + 1f;
-		float num = Vector3.Distance(GameRefs.FeetPos, e.GroundPoint);
-		if (num < 1.5f)
+		if (LiveReach(e))
 		{
+			_walkTarget = null;
 			FacePoint(e.Point);
 			Speaker.SayNow(e.Label + " is already beside you.");
 			return;
 		}
 		_lastGoal = e.GroundPoint;
 		_fixedGoal = e.GroundPoint;
-		_settleUntil = 0f;
-		_walkStarted = Time.unscaledTime;
 		_warpFailures = 0;
 		_legDeadline = 0f;
-		_watchPos = GameRefs.FeetPos;
 		_watchSince = 0f;
 		_nudges = 0;
 		BuildPath();
-		FacePoint(e.Point);
+		if (!IsWalking) return;
+		_bestRemaining = RouteProgress.Remaining(GameRefs.FeetPos, Path, _corner);
+		Log.Info($"Auto-walk started: {e.Label}, {Path.Count} corners, partial={_partialRoute}, mover={CurrentMover()}.");
 		Speaker.SayNow(announcement);
 	}
 
@@ -325,8 +356,8 @@ public static class Navigator
 			Hold.Release(null);
 		}
 		bool isWalking = IsWalking;
-		_viaStairs = null;
-		_stairAttempts = 0;
+		_controllerStepFrame = -1;
+		_pausedAt = -1f;
 		_moverForThisWalk = null;
 		CancelWarps();
 		_walkTarget = null;
@@ -334,294 +365,86 @@ public static class Navigator
 		_corner = 0;
 		if (isWalking && !string.IsNullOrEmpty(reason))
 		{
+			Log.Info("Auto-walk stopped: " + reason);
 			Speaker.SayNow(reason);
 		}
 	}
 
 	private static void BuildPath()
 	{
-		//IL_0032: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0037: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0038: Unknown result type (might be due to invalid IL or missing references)
-		//IL_003d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_003e: Unknown result type (might be due to invalid IL or missing references)
-		//IL_003f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0057: Unknown result type (might be due to invalid IL or missing references)
-		//IL_005d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0070: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0076: Unknown result type (might be due to invalid IL or missing references)
-		//IL_007c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0081: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0087: Unknown result type (might be due to invalid IL or missing references)
-		//IL_008d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00c1: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00c2: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00c8: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00cd: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00cf: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00d1: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0191: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0197: Unknown result type (might be due to invalid IL or missing references)
-		//IL_019d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01a3: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f8: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00fa: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00ff: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0101: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0112: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0113: Unknown result type (might be due to invalid IL or missing references)
-		//IL_012a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0131: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0137: Unknown result type (might be due to invalid IL or missing references)
-		//IL_013e: Unknown result type (might be due to invalid IL or missing references)
 		Path.Clear();
 		_corner = 0;
-		if (_walkTarget == null || !_walkTarget.Alive)
+		_partialRoute = false;
+		if (!IsWalking) return;
+		if (!TryNavMesh(GameRefs.FeetPos, _fixedGoal))
 		{
+			Stop("No walkable route found to " + _walkTarget.Label + ". Try a nearer target.");
 			return;
 		}
-		Vector3 feetPos = GameRefs.FeetPos;
-		Vector3 fixedGoal = _fixedGoal;
-		if (TryNavMesh(feetPos, fixedGoal))
-		{
-			_warnedNoPath = false;
-		}
-		else if (Mathf.Abs(fixedGoal.y - feetPos.y) > 2f && Vector2.Distance(new Vector2(fixedGoal.x, fixedGoal.z), new Vector2(feetPos.x, feetPos.z)) > 3f && _viaStairs == null && _stairAttempts == 0)
-		{
-			Vector3 val = StairsToward(feetPos, fixedGoal.y);
-			if (val != Vector3.zero)
-			{
-				_stairAttempts++;
-				_viaStairs = _walkTarget;
-				_fixedGoal = val;
-				_lastGoal = val;
-				Speaker.Say("Going by way of the stairs.");
-				if (!TryNavMesh(feetPos, val))
-				{
-					Path.Add(new Vector3(val.x, feetPos.y, val.z));
-				}
-			}
-			else
-			{
-				Speaker.Say("That is on another floor and I cannot find a route to it.", Pri.High);
-				_walkTarget = null;
-				Path.Clear();
-			}
-		}
-		else
-		{
-			if (!_warnedNoPath)
-			{
-				_warnedNoPath = true;
-				Speaker.Say("No route found. Going straight.", Pri.High);
-			}
-			Path.Add(new Vector3(fixedGoal.x, feetPos.y, fixedGoal.z));
-		}
+		Log.Debug($"Route: from {GameRefs.FeetPos} to {_fixedGoal}, {Path.Count} corners, partial={_partialRoute}.");
 	}
 
 	private static bool TryNavMesh(Vector3 from, Vector3 to)
 	{
-		//IL_0002: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0009: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0046: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_005b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0060: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0063: Unknown result type (might be due to invalid IL or missing references)
-		//IL_006a: Expected O, but got Unknown
-		//IL_006a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_006c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0083: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0089: Invalid comparison between Unknown and I4
-		//IL_0095: Unknown result type (might be due to invalid IL or missing references)
-		//IL_009b: Invalid comparison between Unknown and I4
-		//IL_0175: Unknown result type (might be due to invalid IL or missing references)
-		//IL_017a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0181: Unknown result type (might be due to invalid IL or missing references)
-		try
+		if (!CalculateRoute(from, to, Path, out _partialRoute)) return false;
+		if (_partialRoute && !_warnedPartial)
 		{
-			List<Vector3> list = Candidates(from);
-			List<Vector3> list2 = Candidates(to);
-			if (list.Count == 0 || list2.Count == 0)
-			{
-				return false;
-			}
-			NavMeshPath val = null;
-			bool flag = false;
-			foreach (Vector3 item in list)
-			{
-				foreach (Vector3 item2 in list2)
-				{
-					NavMeshPath val2 = new NavMeshPath();
-					if (NavMesh.CalculatePath(item, item2, -1, val2) && (int)val2.status != 2)
-					{
-						if ((int)val2.status == 0)
-						{
-							val = val2;
-							flag = true;
-							break;
-						}
-						if (val == null)
-						{
-							val = val2;
-						}
-					}
-				}
-				if (flag)
-				{
-					break;
-				}
-			}
-			if (val == null)
-			{
-				return false;
-			}
-			_partialRoute = !flag;
-			if (_partialRoute && !_warnedPartial)
-			{
-				_warnedPartial = true;
-				Speaker.Say("Only a partial route. I will get as close as I can.", Pri.High);
-			}
-			Il2CppStructArray<Vector3> corners = val.corners;
-			if (corners == null)
-			{
-				return false;
-			}
-			Path.Clear();
-			foreach (Vector3 item3 in (Il2CppArrayBase<Vector3>)(object)corners)
-			{
-				Path.Add(item3);
-			}
-			if (Path.Count < 2)
-			{
-				Path.Clear();
-				return false;
-			}
-			Path.RemoveAt(0);
-			_corner = 0;
-			return Path.Count > 0;
+			_warnedPartial = true;
+			Speaker.Say("Only a partial route. I will stop at its reachable end.", Pri.High);
 		}
-		catch (Exception ex)
-		{
-			Log.Debug("NavMesh pathing unavailable: " + ex.Message);
-			return false;
-		}
+		return true;
 	}
 
 	public static bool RouteTo(Vector3 from, Vector3 to, List<Vector3> corners)
 	{
-		//IL_0009: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0010: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0052: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0062: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0067: Unknown result type (might be due to invalid IL or missing references)
-		//IL_006a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0071: Expected O, but got Unknown
-		//IL_0071: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0073: Unknown result type (might be due to invalid IL or missing references)
-		//IL_008a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0090: Invalid comparison between Unknown and I4
-		//IL_009c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00a2: Invalid comparison between Unknown and I4
-		//IL_0136: Unknown result type (might be due to invalid IL or missing references)
-		//IL_013b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_013e: Unknown result type (might be due to invalid IL or missing references)
+		if (CalculateRoute(from, to, corners, out bool partial) && !partial) return true;
 		corners.Clear();
+		return false;
+	}
+
+	private static bool CalculateRoute(Vector3 from, Vector3 to, List<Vector3> corners, out bool partial)
+	{
+		corners.Clear();
+		partial = false;
 		try
 		{
-			List<Vector3> list = Candidates(from);
-			List<Vector3> list2 = Candidates(to);
-			if (list.Count == 0 || list2.Count == 0)
+			NavMeshPath best = null;
+			foreach (Vector3 start in Candidates(from))
 			{
-				return false;
-			}
-			NavMeshPath val = null;
-			bool flag = false;
-			foreach (Vector3 item in list)
-			{
-				foreach (Vector3 item2 in list2)
+				foreach (Vector3 end in Candidates(to))
 				{
-					NavMeshPath val2 = new NavMeshPath();
-					if (NavMesh.CalculatePath(item, item2, -1, val2) && (int)val2.status != 2)
-					{
-						if ((int)val2.status == 0)
-						{
-							val = val2;
-							flag = true;
-							break;
-						}
-						if (val == null)
-						{
-							val = val2;
-						}
-					}
+					NavMeshPath route = new NavMeshPath();
+					if (!NavMesh.CalculatePath(start, end, NavMesh.AllAreas, route) || route.status == NavMeshPathStatus.PathInvalid) continue;
+					if (best == null || route.status == NavMeshPathStatus.PathComplete) best = route;
+					if (route.status == NavMeshPathStatus.PathComplete) break;
 				}
-				if (flag)
-				{
-					break;
-				}
+				if (best != null && best.status == NavMeshPathStatus.PathComplete) break;
 			}
-			if (val == null)
-			{
-				return false;
-			}
-			Il2CppStructArray<Vector3> corners2 = val.corners;
-			if (corners2 == null)
-			{
-				return false;
-			}
-			foreach (Vector3 item3 in (Il2CppArrayBase<Vector3>)(object)corners2)
-			{
-				corners.Add(item3);
-			}
-			if (corners.Count > 1)
-			{
-				corners.RemoveAt(0);
-			}
-			return corners.Count > 0;
+			if (best == null || best.corners == null || best.corners.Length == 0) return false;
+			partial = best.status != NavMeshPathStatus.PathComplete;
+			foreach (Vector3 corner in best.corners) corners.Add(corner);
+			// Keep the sampled start if the player still has to walk to it.
+			if (corners.Count > 1 && RouteProgress.Reached(from, corners[0], CornerRadius, CornerHeight)) corners.RemoveAt(0);
+			return true;
 		}
-		catch
+		catch (Exception ex)
 		{
+			Log.Warn("NavMesh route failed: " + ex.Message);
 			return false;
 		}
 	}
 
 	private static List<Vector3> Candidates(Vector3 point)
 	{
-		//IL_0026: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0050: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0052: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0056: Unknown result type (might be due to invalid IL or missing references)
-		//IL_005b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0060: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00a4: Unknown result type (might be due to invalid IL or missing references)
-		List<Vector3> list = new List<Vector3>();
-		float[] array = new float[4] { 1f, 2.5f, 5f, 9f };
-		NavMeshHit val = default(NavMeshHit);
-		foreach (float num in array)
-		{
-			if (!NavMesh.SamplePosition(point, out val, num, -1))
-			{
-				continue;
-			}
-			bool flag = false;
-			foreach (Vector3 item in list)
-			{
-				Vector3 val2 = item - val.position;
-				if (val2.sqrMagnitude < 0.04f)
-				{
-					flag = true;
-					break;
-				}
-			}
-			if (!flag)
-			{
-				list.Add(val.position);
-			}
-		}
-		return list;
+		List<Vector3> candidates = new List<Vector3>();
+		CharacterController controller = GameRefs.Controller;
+		float height = Cpp.Alive(controller) ? controller.height * 0.5f : 1f;
+		// Large 5/9 metre samples could select another floor. Limit the search to
+		// the player's size, and reject a hit outside that floor's vertical band.
+		if (NavMesh.SamplePosition(point, out NavMeshHit hit, height * 2f, NavMesh.AllAreas)
+			&& Mathf.Abs(hit.position.y - point.y) <= height)
+			candidates.Add(hit.position);
+		return candidates;
 	}
 
 	private static void ApplyWalk(float dt)
@@ -656,9 +479,19 @@ public static class Navigator
 		//IL_0266: Unknown result type (might be due to invalid IL or missing references)
 		//IL_026b: Unknown result type (might be due to invalid IL or missing references)
 		//IL_026c: Unknown result type (might be due to invalid IL or missing references)
+		_controllerStepFrame = -1;
 		if (!IsWalking)
 		{
+			if (_walkTarget != null) Stop("The target is no longer available.");
 			return;
+		}
+		if (PopupBridge.BlocksGameplay) { PauseForPopup(); return; }
+		if (_pausedAt >= 0f)
+		{
+			_pausedAt = -1f;
+			_watchSince = Time.unscaledTime;
+			_repathAt = 0f;
+			Log.Info("Auto-walk resumed after popup.");
 		}
 		if (Keys.MovementKeyHeld)
 		{
@@ -672,40 +505,19 @@ public static class Navigator
 		}
 		PlayerCharacter player = GameRefs.Player;
 		Vector3 feetPos = GameRefs.FeetPos;
-		Vector3 fixedGoal = _fixedGoal;
-		float num = Vector2.Distance(new Vector2(feetPos.x, feetPos.z), new Vector2(fixedGoal.x, fixedGoal.z));
+		Vector3 fixedGoal = _walkTarget.Kind == EntryKind.Person ? _walkTarget.GroundPoint : _fixedGoal;
 		float num2 = Mathf.Max(0.4f, Prefs.StopDistance.Value);
-		bool flag = Mathf.Abs(feetPos.y - fixedGoal.y) < 2f;
-		if (num <= num2 + 0.6f && flag)
-		{
-			FacePoint(LivePoint(_walkTarget));
-			if (_settleUntil <= 0f)
-			{
-				_settleUntil = Time.unscaledTime + 0.5f;
-			}
-		}
-		else
-		{
-			_settleUntil = 0f;
-		}
-		bool flag2 = LiveReach(_walkTarget);
-		bool flag3 = _settleUntil > 0f && Time.unscaledTime >= _settleUntil;
-		bool flag4 = (num <= num2 && flag && (flag2 || flag3)) || (num <= 0.55f && flag) || (_walkTarget.Kind == EntryKind.Item && flag2) || (_walkTarget.Kind == EntryKind.Room && InsideZone(_walkTarget, feetPos));
-		if (!flag4 && _walkTarget.Kind == EntryKind.Room)
-		{
-			flag4 = InsideZone(_walkTarget, feetPos);
-		}
+		bool flag = Mathf.Abs(feetPos.y - fixedGoal.y) <= CornerHeight;
+		bool reachable = LiveReach(_walkTarget);
+		bool flag4 = Cpp.Alive(_walkTarget.Item) ? reachable
+			: (_walkTarget.Kind == EntryKind.Room && InsideZone(_walkTarget, feetPos))
+				|| (!_partialRoute && flag && RouteProgress.Remaining(feetPos, Path, _corner) <= num2);
 		if (flag4)
 		{
 			Arrive(fixedGoal);
 			return;
 		}
-		if (_walkTarget.Kind == EntryKind.Person && Time.unscaledTime - _walkStarted > 25f)
-		{
-			Speaker.SayNow(_walkTarget.Label + " keeps moving. Stopping here.");
-			Stop(null);
-			return;
-		}
+
 		if (Time.unscaledTime >= _repathAt && !IsWarping(player))
 		{
 			_repathAt = Time.unscaledTime + 1.5f;
@@ -714,16 +526,22 @@ public static class Navigator
 				_lastGoal = fixedGoal;
 				_fixedGoal = fixedGoal;
 				BuildPath();
+				if (!IsWalking) return;
+				_bestRemaining = RouteProgress.Remaining(feetPos, Path, _corner);
 			}
 		}
 		if (Prefs.AutoOpenDoors.Value)
 		{
-			Vector3 val = fixedGoal - feetPos;
+			Vector3 val = NextWaypoint(feetPos) - feetPos;
+			if (!IsWalking) return;
+			val.y = 0f;
 			OpenDoorAhead(feetPos, val.normalized);
 		}
+		if (!IsWalking) return;
 		StepMove(player, feetPos, dt);
+		if (!IsWalking) return;
 		Watchdog(feetPos);
-		AnnounceProgress(num);
+		AnnounceProgress(RouteProgress.Remaining(feetPos, Path, _corner));
 	}
 
 	private static void StepMove(PlayerCharacter p, Vector3 pos, float dt)
@@ -756,9 +574,10 @@ public static class Navigator
 		//IL_0002: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0018: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0019: Unknown result type (might be due to invalid IL or missing references)
-		if (Vector3.Distance(pos, _watchPos) > 0.12f)
+		float remaining = RouteProgress.Remaining(pos, Path, _corner);
+		if (_bestRemaining - remaining > CornerRadius)
 		{
-			_watchPos = pos;
+			_bestRemaining = remaining;
 			_watchSince = Time.unscaledTime;
 			_nudges = 0;
 			// Whatever tier actually moved the player is the one worth trying first on
@@ -796,10 +615,10 @@ public static class Navigator
 			{
 				_nudges++;
 				_watchSince = Time.unscaledTime;
-				_sidestepSign = ((_sidestepSign >= 0f) ? (-1f) : 1f);
-				_sidestepUntil = Time.unscaledTime + 1.2f;
 				_corner = 0;
 				BuildPath();
+				_bestRemaining = RouteProgress.Remaining(pos, Path, _corner);
+				Log.Info($"Auto-walk route recovery {_nudges}: {_walkTarget?.Label}, {remain:0.0} m away, position={pos}, next={(Path.Count > 0 ? Path[0].ToString() : "none")}.");
 			}
 			else if (!(num < 5f))
 			{
@@ -811,77 +630,21 @@ public static class Navigator
 
 	private static void StepDirect(Vector3 pos, float dt)
 	{
-		//IL_0007: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0008: Unknown result type (might be due to invalid IL or missing references)
-		//IL_000d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_000e: Unknown result type (might be due to invalid IL or missing references)
-		//IL_000f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0010: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0015: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0043: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0044: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0045: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_005f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0074: Unknown result type (might be due to invalid IL or missing references)
-		//IL_007a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_007f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0080: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0131: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00cf: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00d0: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00da: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00e0: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00e5: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00ea: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0116: Unknown result type (might be due to invalid IL or missing references)
-		//IL_011b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_011c: Unknown result type (might be due to invalid IL or missing references)
-		Vector3 val = NextWaypoint(pos);
-		Vector3 val2 = val - pos;
-		val2.y = 0f;
-		if (val2.sqrMagnitude < 0.0001f)
+		Vector3 waypoint = NextWaypoint(pos);
+		if (!IsWalking) return;
+		CharacterController controller = GameRefs.Controller;
+		if (!Cpp.Alive(controller) || !controller.enabled)
 		{
+			Stop("The player controller is unavailable.");
 			return;
 		}
-		val2.Normalize();
-		val2 = Avoid(pos, val2);
-		if (!IsFinite(val2))
-		{
-			return;
-		}
-		Vector3 val3 = val2 * Mathf.Max(0.5f, Prefs.WalkSpeed.Value) * dt;
-		if (!IsFinite(val3))
-		{
-			return;
-		}
-		CharacterController cc = GameRefs.Controller;
-		if (Cpp.Alive((UnityEngine.Object)(object)cc) && Cpp.Read(() => ((Collider)cc).enabled, fallback: false))
-		{
-			try
-			{
-				cc.Move(val3 + Vector3.down * 6f * dt);
-			}
-			catch
-			{
-			}
-		}
-		else
-		{
-			Transform playerTransform = GameRefs.PlayerTransform;
-			if ((UnityEngine.Object)(object)playerTransform != (UnityEngine.Object)null)
-			{
-				try
-				{
-					playerTransform.position += val3;
-				}
-				catch
-				{
-				}
-			}
-		}
-		Steer(val2, dt);
+		Vector3 step = RouteProgress.HorizontalStep(pos, waypoint, Mathf.Max(0f, Prefs.WalkSpeed.Value) * dt);
+		if (!IsFinite(step) || step.sqrMagnitude <= 0f) return;
+		// Stay on the computed corridor at corners. The controller handles physical
+		// contact and stairs; a random sidestep can push the route into a wall.
+		_controllerStep = step;
+		_controllerStepFrame = Time.frameCount;
+		Steer(step.normalized, dt);
 	}
 
 	private static bool IsWarping(PlayerCharacter p)
@@ -937,7 +700,7 @@ public static class Navigator
 		}
 		if (Path.Count == 0 || _corner >= Path.Count)
 		{
-			Arrive(_walkTarget.Point);
+			FinishRoute();
 			return;
 		}
 		Vector3 val = Path[_corner];
@@ -996,6 +759,7 @@ public static class Navigator
 			return;
 		}
 		Vector3 val = NextWaypoint(pos);
+		if (!IsWalking) return;
 		Vector3 val2 = val - pos;
 		val2.y = 0f;
 		if (val2.sqrMagnitude < 0.0001f)
@@ -1020,7 +784,8 @@ public static class Navigator
 			{
 				try
 				{
-					cc.Move(val3 + Vector3.down * 6f * dt);
+					_controllerStep = val3;
+					_controllerStepFrame = Time.frameCount;
 				}
 				catch
 				{
@@ -1035,123 +800,25 @@ public static class Navigator
 		Steer(val2, dt);
 	}
 
-	private static Vector3 StairsToward(Vector3 from, float targetY)
-	{
-		//IL_0001: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0006: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00bc: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00bd: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00d6: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00d7: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00cd: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00d2: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f3: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f4: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00ea: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00ef: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f8: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0055: Unknown result type (might be due to invalid IL or missing references)
-		//IL_005a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_005d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0080: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0082: Unknown result type (might be due to invalid IL or missing references)
-		Vector3 val = Vector3.zero;
-		float num = float.MaxValue;
-		foreach (GameRefs.Room item in GameRefs.Rooms())
-		{
-			if (item.Name.IndexOf("stair", StringComparison.OrdinalIgnoreCase) < 0)
-			{
-				continue;
-			}
-			foreach (Vector3 item2 in StairPoints(item))
-			{
-				float num2 = Mathf.Abs(item2.y - targetY);
-				if (!(num2 >= num))
-				{
-					num = num2;
-					val = item2;
-				}
-			}
-		}
-		if (val == Vector3.zero)
-		{
-			return Vector3.zero;
-		}
-		if (Vector3.Distance(from, val) < 2f)
-		{
-			return Vector3.zero;
-		}
-		return val;
-	}
-
-	private static List<Vector3> StairPoints(GameRefs.Room r)
-	{
-		//IL_001e: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0023: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0028: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0034: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0046: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0050: Unknown result type (might be due to invalid IL or missing references)
-		//IL_005e: Unknown result type (might be due to invalid IL or missing references)
-		//IL_006a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_007c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0086: Unknown result type (might be due to invalid IL or missing references)
-		List<Vector3> list = new List<Vector3>(r.Anchors);
-		foreach (Bounds volume in r.Volumes)
-		{
-			Bounds current = volume;
-			list.Add(new Vector3(current.center.x, current.min.y + 0.2f, current.center.z));
-			list.Add(new Vector3(current.center.x, current.max.y - 0.2f, current.center.z));
-		}
-		return list;
-	}
-
 	private static Vector3 NextWaypoint(Vector3 pos)
 	{
-		//IL_0006: Unknown result type (might be due to invalid IL or missing references)
-		//IL_000b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_005a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_005f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0060: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0066: Unknown result type (might be due to invalid IL or missing references)
-		//IL_006c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0071: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0077: Unknown result type (might be due to invalid IL or missing references)
-		//IL_007d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0033: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0039: Unknown result type (might be due to invalid IL or missing references)
-		//IL_003f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0045: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00e6: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00ec: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f2: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f8: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00fd: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0100: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00df: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00e4: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00bb: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00c1: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00c7: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00cd: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00d2: Unknown result type (might be due to invalid IL or missing references)
-		Vector3 point = _walkTarget.Point;
-		if (Path.Count == 0 || _corner >= Path.Count)
+		while (_corner < Path.Count && RouteProgress.Reached(pos, Path[_corner], CornerRadius, CornerHeight))
 		{
-			return new Vector3(point.x, pos.y, point.z);
-		}
-		Vector3 val = Path[_corner];
-		if (Vector2.Distance(new Vector2(pos.x, pos.z), new Vector2(val.x, val.z)) < 0.6f)
-		{
+			Log.Debug($"Route corner {_corner + 1}/{Path.Count} reached at {pos}.");
 			_corner++;
-			if (_corner >= Path.Count)
-			{
-				return new Vector3(point.x, pos.y, point.z);
-			}
-			val = Path[_corner];
 		}
-		return new Vector3(val.x, pos.y, val.z);
+		if (_corner < Path.Count) return Path[_corner];
+		FinishRoute();
+		return pos;
+	}
+
+	private static void FinishRoute()
+	{
+		if (!IsWalking) return;
+		if (LiveReach(_walkTarget) || (_walkTarget.Kind == EntryKind.Room && InsideZone(_walkTarget, GameRefs.FeetPos)))
+			Arrive(LivePoint(_walkTarget));
+		else
+			Stop(_partialRoute ? "Reached the end of the partial route. The target is still out of reach." : "Reached the nearest walkable point. The target is still out of reach.");
 	}
 
 	private static void Steer(Vector3 dir, float dt)
@@ -1184,28 +851,9 @@ public static class Navigator
 		//IL_003e: Unknown result type (might be due to invalid IL or missing references)
 		//IL_004a: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0122: Unknown result type (might be due to invalid IL or missing references)
+		_controllerStepFrame = -1;
 		CancelWarps();
 		FacePoint(goal);
-		if (_viaStairs != null)
-		{
-			Entry viaStairs = _viaStairs;
-			_viaStairs = null;
-			if (viaStairs.Alive)
-			{
-				if (!(Mathf.Abs(GameRefs.FeetPos.y - viaStairs.GroundPoint.y) <= 2f))
-				{
-					Speaker.SayNow("I reached the stairs but not " + viaStairs.Label + ". Walk up or down yourself, then pick it again.");
-					_walkTarget = null;
-					Path.Clear();
-				}
-				else
-				{
-					Speaker.Say("At the stairs. Continuing.");
-					Begin(viaStairs, "Continuing to " + viaStairs.Label + ".");
-				}
-				return;
-			}
-		}
 		string text = ((_walkTarget != null) ? _walkTarget.Label : "the spot");
 		bool flag = _walkTarget != null && _walkTarget.Kind == EntryKind.Person;
 		float num = ((_walkTarget != null) ? (_walkTarget.Point.y - GameRefs.FeetPos.y) : 0f);
@@ -1378,96 +1026,6 @@ public static class Navigator
 		catch (Exception ex)
 		{
 			Log.Debug("Door open attempt failed: " + ex.Message);
-		}
-	}
-
-	private static Vector3 Avoid(Vector3 pos, Vector3 dir)
-	{
-		//IL_01c9: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01ca: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0008: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0009: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0013: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0018: Unknown result type (might be due to invalid IL or missing references)
-		//IL_001d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0025: Unknown result type (might be due to invalid IL or missing references)
-		//IL_002a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_002f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0030: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0032: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01ce: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0064: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0065: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f9: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00fe: Unknown result type (might be due to invalid IL or missing references)
-		//IL_011b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_011c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_011d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0122: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0113: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0114: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01b5: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01c1: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01be: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01c3: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0195: Unknown result type (might be due to invalid IL or missing references)
-		//IL_019a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_019b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01a5: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01aa: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00c6: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00c7: Unknown result type (might be due to invalid IL or missing references)
-		try
-		{
-			float num = 0.28f;
-			Vector3 val = pos + Vector3.up * 1f + dir * (num + 0.12f);
-			RaycastHit val2 = default(RaycastHit);
-			if (!Physics.SphereCast(val, num, dir, out val2, 0.8f, -1, (QueryTriggerInteraction)1))
-			{
-				return dir;
-			}
-			if (IsOurs(val2.transform))
-			{
-				return dir;
-			}
-			if (_walkTarget != null && (UnityEngine.Object)(object)val2.transform != (UnityEngine.Object)null)
-			{
-				GameObject go = _walkTarget.Go;
-				Transform val3 = val2.transform;
-				int num2 = 0;
-				while ((UnityEngine.Object)(object)val3 != (UnityEngine.Object)null && num2++ < 10)
-				{
-					if ((UnityEngine.Object)(object)go != (UnityEngine.Object)null && (UnityEngine.Object)(object)((Component)val3).gameObject == (UnityEngine.Object)(object)go)
-					{
-						return dir;
-					}
-					val3 = val3.parent;
-				}
-			}
-			Vector3 normal = val2.normal;
-			if (normal.sqrMagnitude < 1E-06f)
-			{
-				return dir;
-			}
-			Vector3 val4 = Vector3.ProjectOnPlane(dir, normal);
-			val4.y = 0f;
-			if (val4.sqrMagnitude < 0.001f)
-			{
-				if (Time.unscaledTime > _sidestepUntil || _sidestepSign == 0f)
-				{
-					_sidestepSign = ((UnityEngine.Random.value < 0.5f) ? (-1f) : 1f);
-					_sidestepUntil = Time.unscaledTime + 1.2f;
-				}
-				val4 = Vector3.Cross(Vector3.up, dir) * _sidestepSign;
-			}
-			val4.Normalize();
-			return IsFinite(val4) ? val4 : dir;
-		}
-		catch
-		{
-			return dir;
 		}
 	}
 

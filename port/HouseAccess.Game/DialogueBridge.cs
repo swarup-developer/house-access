@@ -17,11 +17,7 @@ namespace HouseAccess.Game;
 
 public static class DialogueBridge
 {
-	private static bool _pending;
-
 	private static bool _listReady;
-
-	private static float _pendingSince;
 
 	private static int _index = -1;
 
@@ -57,7 +53,6 @@ public static class DialogueBridge
 
 	public static void Reset()
 	{
-		_pending = false;
 		_listReady = false;
 		_index = -1;
 		Active = false;
@@ -96,7 +91,7 @@ public static class DialogueBridge
 				_pendingLine = null;
 				return;
 			}
-			if (text == "always")
+			if (text == "always" && !PopupBridge.Active)
 			{
 				Speaker.Say(TextUtil.Cap(cleanText, 600), Pri.High);
 				return;
@@ -144,8 +139,6 @@ public static class DialogueBridge
 		}
 		if (!_listReady || Labels.Count == 0)
 		{
-			_pending = true;
-			_pendingSince = Time.unscaledTime;
 			TryCollect(GameRefs.Dialogue);
 			_repliesHeld = false;
 		}
@@ -161,15 +154,12 @@ public static class DialogueBridge
 
 	public static void NotifyResponsesPending()
 	{
-		_pending = true;
 		_listReady = false;
-		_pendingSince = Time.unscaledTime;
 	}
 
 	public static void NotifyResponseChosen()
 	{
 		_listReady = false;
-		_pending = false;
 		_repliesHeld = false;
 		_listAnnounced = false;
 		_lastFocusId = 0;
@@ -187,6 +177,7 @@ public static class DialogueBridge
 
 	public static void Tick()
 	{
+		if (PopupBridge.BlocksGameplay) return;
 		if (!GameRefs.DialogueActive)
 		{
 			// A closed dialogue must release menu input even if replies were queued
@@ -220,15 +211,10 @@ public static class DialogueBridge
 		}
 		// Read the dialogue UI's own response buttons.
 		List<Button> list = Cpp.Read(() => Cpp.ToManaged(ui.buttons));
-		if (list == null || list.Count == 0)
+		if (!ui.responsesDisplayed || list == null || list.Count == 0)
 		{
-			// No buttons exist at all. Only an empty container after replies were queued
-			// is a lost batch worth warning about.
-			if (_pending && Time.unscaledTime - _pendingSince > 4f)
-			{
-				_pending = false;
-				Log.Warn("Dialogue responses never appeared; giving up on this batch.");
-			}
+			// Native DisplayResponses waits for dialogue and other canvases. A queued
+			// batch is not a failed batch just because four seconds have elapsed.
 			return;
 		}
 		Buttons.Clear();
@@ -255,16 +241,8 @@ public static class DialogueBridge
 		}
 		if (Buttons.Count == 0)
 		{
-			// The reply buttons exist but none are enabled or labelled yet - the game
-			// fills them at the start of an exchange and keeps them disabled while the
-			// voiced line plays. That is waiting, not failure: keep the batch alive.
-			if (_pending)
-			{
-				_pendingSince = Time.unscaledTime;
-			}
 			return;
 		}
-		_pending = false;
 		_listReady = true;
 		_index = 0;
 		_repliesHeld = true;
@@ -380,6 +358,16 @@ public static class DialogueBridge
 		Choose(index);
 	}
 
+	/// <summary>Our bound arrows move once; suppress Unity's second move for that same key.</summary>
+	public static bool HandlesMove(GameObject go)
+	{
+		if (PopupBridge.BlocksGameplay || !GameRefs.DialogueActive || !HasChoices
+			|| (!Keys.Hit(Prefs.KeyUiNext) && !Keys.Hit(Prefs.KeyUiPrev))) return false;
+		foreach (Button button in Buttons)
+			if (Cpp.Alive(button) && button.gameObject == go) return true;
+		return false;
+	}
+
 	/// <summary>
 	/// Moves the reply cursor one step (Down = +1, Up = -1), wrapping at the ends, and
 	/// reads the reply now focused: "&lt;reply&gt;, N of M." The same arrows that browse
@@ -488,6 +476,7 @@ public static class DialogueBridge
 	/// </summary>
 	private static void Choose(int i)
 	{
+		if (PopupBridge.BlocksGameplay) return;
 		if (i < 0 || i >= Buttons.Count)
 		{
 			Speaker.SayNow("No replies on screen.");
@@ -499,6 +488,11 @@ public static class DialogueBridge
 			Speaker.SayNow("That reply is no longer there.");
 			return;
 		}
+		if (!val.IsActive() || !val.IsInteractable())
+		{
+			Speaker.SayNow("That reply is not ready yet.");
+			return;
+		}
 		Speaker.SayNow((i < Labels.Count) ? Labels[i] : "reply");
 		try
 		{
@@ -508,6 +502,6 @@ public static class DialogueBridge
 		{
 			Log.Warn("Reply invoke failed: " + ex.Message);
 		}
-		NotifyResponseChosen();
+		if (!PopupBridge.BlocksGameplay) NotifyResponseChosen();
 	}
 }

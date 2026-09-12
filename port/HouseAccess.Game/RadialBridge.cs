@@ -135,6 +135,7 @@ public static class RadialBridge
 
 	public static void Tick()
 	{
+		if (PopupBridge.BlocksGameplay || DialogueBridge.Active || WheelBridge.Active) return;
 		if (Finder.Active)
 		{
 			return;
@@ -334,7 +335,7 @@ public static class RadialBridge
 			menu.OnChoose(num + 1);
 			if (menu.IsShowing)
 			{
-				Speaker.SayNow("That action is not ready. Try again.");
+				if (!PopupBridge.BlocksGameplay) Speaker.SayNow("That action is not ready. Try again.");
 				return;
 			}
 		}

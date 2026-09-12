@@ -85,6 +85,8 @@ public static class MenuReader
 
 	public static void Tick()
 	{
+		if (PopupBridge.BlocksGameplay && !PopupBridge.Active) return;
+		if (PopupBridge.Active) Active = true;
 		if (Time.unscaledTime >= _nextCheck)
 		{
 			_nextCheck = Time.unscaledTime + 0.3f;
@@ -108,7 +110,7 @@ public static class MenuReader
 	/// </summary>
 	private static void WatchKeys()
 	{
-		if (!Prefs.SpeakUi.Value || !Active || BridgeOwnsTheList() || KeyEditor.Active || InputConfigBridge.Active || Finder.Active || DialogueBridge.Active || DialogueBridge.RepliesHeld)
+		if (!Active || (!PopupBridge.Active && (!Prefs.SpeakUi.Value || BridgeOwnsTheList() || KeyEditor.Active || InputConfigBridge.Active || Finder.Active || DialogueBridge.Active || DialogueBridge.RepliesHeld)))
 		{
 			return;
 		}
@@ -365,7 +367,8 @@ public static class MenuReader
 	/// </summary>
 	private static void Add(List<Numbered> into, HashSet<int> seen, GameObject go, Selectable control)
 	{
-		if (!Cpp.Alive((UnityEngine.Object)(object)go) || !go.activeInHierarchy || !SettingsBridge.AllowsMenuControl(go))
+		if (!Cpp.Alive((UnityEngine.Object)(object)go) || !go.activeInHierarchy || !PopupBridge.Allows(go)
+			|| (!PopupBridge.Active && !SettingsBridge.AllowsMenuControl(go)))
 		{
 			return;
 		}
@@ -422,6 +425,7 @@ public static class MenuReader
 
 	private static bool MenuIsShowing()
 	{
+		if (PopupBridge.Active) return true;
 		try
 		{
 			foreach (CanvasBase c in Cpp.FindAll<CanvasBase>(activeOnly: true))
@@ -535,7 +539,7 @@ public static class MenuReader
 			if (instanceID != _lastSelectedId)
 			{
 				_lastSelectedId = instanceID;
-				if (!DialogueBridge.RepliesHeld && !DialogueBridge.SpeakerTalking && !BridgeOwnsTheList())
+				if (PopupBridge.Active || (!DialogueBridge.RepliesHeld && !DialogueBridge.SpeakerTalking && !BridgeOwnsTheList()))
 				{
 					AnnounceControl(val);
 				}
@@ -583,6 +587,7 @@ public static class MenuReader
 
 	public static void AnnounceControl(GameObject go, bool force)
 	{
+		if (!PopupBridge.Allows(go) || (!force && PopupBridge.ReadingOpening)) return;
 		if ((UnityEngine.Object)(object)go == (UnityEngine.Object)null)
 		{
 			return;
@@ -1119,6 +1124,12 @@ public static class MenuReader
 
 	public static void ReadAll()
 	{
+		if (PopupBridge.Active)
+		{
+			string text = TextUnder(PopupBridge.Root);
+			Speaker.SayNow(string.IsNullOrWhiteSpace(text) ? "No readable text in this popup." : text);
+			return;
+		}
 		if (SettingsBridge.Active)
 		{
 			List<string> labels = new List<string>();
@@ -1159,6 +1170,24 @@ public static class MenuReader
 			}
 		}
 		Speaker.SayNow(TextUtil.Cap(stringBuilder.ToString(), 1400));
+	}
+
+	/// <summary>Read only visible text under a native panel, without truncating tutorial content.</summary>
+	public static string TextUnder(GameObject root)
+	{
+		if (!Cpp.Alive(root)) return null;
+		HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		List<KeyValuePair<float, string>> lines = new List<KeyValuePair<float, string>>();
+		foreach (Text text in root.GetComponentsInChildren<Text>(false))
+			if (Cpp.Alive(text) && text.enabled && text.gameObject.activeInHierarchy)
+				Consider(text.text, text.transform.position.y, seen, lines);
+		foreach (TMP_Text text in root.GetComponentsInChildren<TMP_Text>(false))
+			if (Cpp.Alive(text) && text.enabled && text.gameObject.activeInHierarchy)
+				Consider(text.text, text.transform.position.y, seen, lines);
+		lines.Sort((a, b) => b.Key.CompareTo(a.Key));
+		List<string> content = new List<string>();
+		foreach (var line in lines) content.Add(line.Value);
+		return string.Join(". ", content);
 	}
 
 	private static void Consider(string raw, float y, HashSet<string> seen, List<KeyValuePair<float, string>> into)

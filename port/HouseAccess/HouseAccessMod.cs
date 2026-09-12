@@ -15,7 +15,7 @@ using UnityEngine.SceneManagement;
 
 namespace HouseAccess;
 
-[BepInPlugin("HouseAccess.HouseAccess", "House Access", "1.1.16")]
+[BepInPlugin("HouseAccess.HouseAccess", "House Access", "1.1.17")]
 public class HouseAccessMod : BasePlugin
 {
 	private Harmony _harmony;
@@ -23,7 +23,7 @@ public class HouseAccessMod : BasePlugin
 	public override void Load()
 	{
 		global::HouseAccess.Log.Bind(base.Log);
-		global::HouseAccess.Log.Info("House Access 1.1.16 (BepInEx build) starting. Native interaction availability, corrected wheel choices, keyboard audio settings and direct auto-walk.");
+		global::HouseAccess.Log.Info("House Access 1.1.17 (BepInEx build) starting. Tutorial priority, native controller movement and corrected route following.");
 		MelonLoader.MelonPreferences.Bind(Config);
 		Prefs.Init();
 		Overrides.Load();
@@ -154,6 +154,14 @@ internal static class Driver
 		else if (_enabled)
 		{
 			Log.Guard("Refs", GameRefs.Tick);
+			Log.Guard("Popup", PopupBridge.Tick);
+			if (PopupBridge.BlocksGameplay)
+			{
+				Navigator.PauseForPopup();
+				Log.Guard("PopupMenu", MenuReader.Tick);
+				Log.Guard("PopupInput", PopupBridge.HandleKeys);
+				return;
+			}
 			if (!_greeted && Time.realtimeSinceStartup > _greetAt)
 			{
 				_greeted = true;
@@ -264,6 +272,7 @@ internal static class Driver
 		KeyEditor.Reset();
 		CameraBridge.Reset();
 		MenuReader.Reset();
+		PopupBridge.Reset();
 		LoadingBridge.Reset();
 		Reporter.ResetRoom();
 		ActionPicker.Reset();

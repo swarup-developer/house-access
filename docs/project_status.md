@@ -2,7 +2,7 @@
 
 This document tracks the current accessibility status, tested features, open tasks, and architecture of HouseAccess. It is structured according to the Accessibility Mod Template specification.
 
-## Current compatibility work (1.1.14–1.1.16)
+## Current compatibility work (1.1.14–1.1.17)
 
 The current Steam log disproved the earlier claim that 1.1.13 fixed Steam support:
 the driver installed, but most bridges failed because their types were still bound
@@ -26,7 +26,17 @@ adds keyboard focus and navigation within Audio settings, fixes one-based wheel
 dispatch and its guard, waits for native self-wheel setup, and reads current
 interaction availability from the game. The interaction report no longer treats
 every declared story action as available. These changes have offline regression
-coverage; in-game behavior for 1.1.16 remains unverified.
+coverage. A later 1.1.16 gameplay run loaded all 36 hooks and recorded numerous
+successful wheel choices and conversations. The user reported unread tutorials,
+competing popup/wheel contexts, and frequent navigation stalls, particularly the
+initial route to Brittney. Audio behavior was not reported in that run.
+
+Version 1.1.17 gives tutorials input and reading priority, waits for native dialogue
+response readiness, prevents duplicate reply navigation, and repairs corner/floor
+handling and direct movement through the game's controller step. It stops at
+unreachable route endpoints and adds navigation diagnostics. These changes are
+validated offline; they are not yet confirmed in gameplay. See
+[the focused gameplay test notes](GAMEPLAY-TESTING.md).
 
 ## Core Metadata
 * **Game:** House Party
